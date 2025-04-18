@@ -199,3 +199,14 @@ README.html
 *.iml
 .idea
 .exercism
+
+### Secret Folders ###
+/secrets/
+/secret/
+/private/
+**/secrets/
+**/secret/
+**/private/
+.env
+application-secret.properties
+**/application-secret.properties
