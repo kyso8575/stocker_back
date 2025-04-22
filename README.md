@@ -281,15 +281,15 @@ Country가 null인 주식 상세 정보 업데이트 완료. 840개의 주식 �
 특정 주식 심볼의 실시간 시세 정보를 Finnhub API에서 가져와 데이터베이스에 저장하고 반환합니다.
 
 ```
-GET /api/stocks/quote/{ticker}
+GET /api/stocks/fetch/quotes/{symbol}
 ```
 
 **파라미터**:
-- `ticker`: 주식 심볼 (예: AAPL, MSFT, GOOGL)
+- `symbol`: 주식 심볼 (예: AAPL, MSFT, GOOGL)
 
 **사용 예시**:
 ```
-curl 'http://localhost:8080/api/stocks/quote/AAPL'
+curl 'http://localhost:8080/api/stocks/fetch/quotes/AAPL'
 ```
 
 **응답 예시**:
@@ -330,6 +330,66 @@ curl 'http://localhost:8080/api/stocks/quote/AAPL'
   "message": "Error fetching quote for AAPL"
 }
 ```
+
+> **참고**: 기존 `/api/stocks/quote/{ticker}` 엔드포인트도 계속 지원되지만, 새 엔드포인트 사용을 권장합니다.
+
+### 모든 주식 실시간 시세 조회
+
+모든 주식의 실시간 시세 정보를 Finnhub API에서 가져와 데이터베이스에 저장하고 반환합니다.
+
+```
+GET /api/stocks/fetch/quotes/all
+```
+
+**파라미터**:
+- `batchSize`: 한 번에 처리할 주식 수 (기본값: 20)
+- `delayMs`: API 호출 사이의 지연 시간(밀리초) (기본값: 300)
+
+**사용 예시**:
+```
+curl 'http://localhost:8080/api/stocks/fetch/quotes/all?batchSize=10&delayMs=500'
+```
+
+**응답 예시**:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "symbol": "AAPL",
+      "currentPrice": 182.63,
+      "change": 1.25,
+      "percentChange": 0.69,
+      "high": 183.12,
+      "low": 180.44,
+      "open": 181.27,
+      "previousClose": 181.38,
+      "timestamp": 1650384000
+    },
+    {
+      "id": 2,
+      "symbol": "MSFT",
+      "currentPrice": 327.81,
+      "change": 2.33,
+      "percentChange": 0.72,
+      "high": 329.10,
+      "low": 325.55,
+      "open": 326.12,
+      "previousClose": 325.48,
+      "timestamp": 1650384000
+    }
+    // ... 더 많은 주식 데이터
+  ],
+  "totalCount": 1250,
+  "message": "Successfully fetched quotes for 1250 stocks"
+}
+```
+
+**주의사항**:
+- 이 엔드포인트는 모든 주식 데이터를 처리하므로 실행 시간이 길고 API 호출 제한에 도달할 수 있습니다.
+- 대량의 데이터를 처리할 때는 `batchSize`와 `delayMs` 값을 적절히 조정하세요.
+- 여러 페이지에 걸쳐 데이터를 순차적으로 처리합니다.
 
 ### 주식 상세 프로필 정보 조회
 
@@ -399,7 +459,7 @@ curl 'http://localhost:8080/api/stocks/detail/AAPL'
    - 대량의 데이터가 있을 경우 `batchSize`를 적절히 조정합니다.
    - API 제한을 고려하여 `delayMs`를 충분히 설정합니다(최소 200ms 권장).
 3. 필요에 따라 `/api/stocks/fetch/profiles/null-country`를 통해 누락된 country 정보를 보완합니다.
-4. 주식의 실시간 시세 정보가 필요한 경우 `/api/stocks/quote/{ticker}`를 통해 개별 주식의 시세를 조회합니다.
+4. 주식의 실시간 시세 정보가 필요한 경우 `/api/stocks/fetch/quotes/{symbol}`를 통해 개별 주식의 시세를 조회합니다.
 
 ## 인증 및 권한
 

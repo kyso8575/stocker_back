@@ -598,4 +598,77 @@ public class StockService {
         logger.info("Fetching stock details for ticker: {}", ticker);
         return stockRepository.findByTicker(ticker);
     }
+    
+    /**
+     * 모든 주식의 시세 정보를 Finnhub API에서 가져와 데이터베이스에 저장하고 반환합니다.
+     * @param batchSize 한 번에 처리할 주식 수
+     * @param delayMs API 호출 사이의 지연 시간(밀리초)
+     * @return 가져온 주식 시세 정보 목록
+     */
+    @Transactional
+    public List<StockQuote> fetchAndSaveAllStockQuotes(int batchSize, int delayMs) {
+        logger.info("Starting to fetch quotes for ALL STOCKS with batchSize={}, delayMs={}", batchSize, delayMs);
+        
+        List<StockQuote> results = new ArrayList<>();
+        int pageNumber = 0;
+        int successCount = 0;
+        int failedCount = 0;
+        
+        while (true) {
+            Pageable pageable = PageRequest.of(pageNumber, batchSize, Sort.by("id"));
+            Page<Stock> stockPage = stockRepository.findAll(pageable);
+            
+            if (stockPage.isEmpty()) {
+                break;
+            }
+            
+            logger.info("Processing batch {} of stocks (page {} of {}, total stocks: {})", 
+                batchSize, pageNumber + 1, stockPage.getTotalPages(), stockPage.getTotalElements());
+            
+            List<StockQuote> batchResults = new ArrayList<>();
+            
+            for (Stock stock : stockPage.getContent()) {
+                String ticker = stock.getTicker();
+                
+                try {
+                    // API 호출 사이에 지연 추가 (API 제한 고려)
+                    if (batchResults.size() > 0) {
+                        Thread.sleep(delayMs);
+                    }
+                    
+                    logger.info("Fetching quote for stock: ID={}, {} ({})", 
+                        stock.getId(), ticker, stock.getName());
+                    
+                    StockQuote quote = fetchAndSaveStockQuote(ticker);
+                    batchResults.add(quote);
+                    successCount++;
+                    
+                    logger.info("Successfully fetched quote for {} ({}/{}): {}", 
+                        ticker, successCount + failedCount, stockPage.getTotalElements(), quote);
+                } catch (Exception e) {
+                    failedCount++;
+                    logger.error("Error fetching quote for {} (ID={}): {}", 
+                        ticker, stock.getId(), e.getMessage());
+                }
+            }
+            
+            results.addAll(batchResults);
+            pageNumber++;
+            
+            // 모든 페이지 처리 완료
+            if (pageNumber >= stockPage.getTotalPages()) {
+                break;
+            }
+            
+            logger.info("Completed page {} of {}. Progress: {}/{} stocks processed ({}%)",
+                    pageNumber, stockPage.getTotalPages(), 
+                    successCount + failedCount, stockPage.getTotalElements(),
+                    String.format("%.2f", (100.0 * (successCount + failedCount) / stockPage.getTotalElements())));
+        }
+        
+        logger.info("Completed stock quote fetching. Processed {} stocks, success: {}, failed: {}", 
+            successCount + failedCount, successCount, failedCount);
+        
+        return results;
+    }
 } 
