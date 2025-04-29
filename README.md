@@ -10,7 +10,31 @@ Stocker는 다음과 같은 단계로 주식 데이터를 수집합니다:
 2. **주식 프로필 수집**: 각 심볼에 대한 상세 프로필 정보(국가, 시가총액, 발행주식수 등)를 수집합니다.
 3. **실시간 시세 조회**: 개별 주식의 실시간 시세 정보(현재가, 변동폭, 고가, 저가 등)를 조회합니다.
 
-## API 엔드포인트
+## API 명세서
+
+### API 엔드포인트 요약
+
+| 메서드 | 엔드포인트 | 설명 | 주요 파라미터 |
+|--------|------------|------|--------------|
+| **인증 관련 API** |
+| POST | `/api/auth/signup` | 회원가입 | username, email, password |
+| POST | `/api/auth/login-rest` | RESTful API용 로그인 | username, password |
+| GET | `/api/auth/status` | 로그인 상태 확인 | - |
+| POST | `/api/auth/logout-rest` | RESTful API용 로그아웃 | - |
+| GET | `/api/users/{username}` | 사용자 정보 조회 | username |
+| PUT | `/api/users/{username}/last-login` | 마지막 로그인 시간 업데이트 | username |
+| POST | `/api/users/{username}/change-password` | 비밀번호 변경 | username, currentPassword, newPassword |
+| **주식 데이터 API** |
+| GET | `/api/stocks/fetch/symbols` | 주식 심볼 데이터 수집 | - |
+| GET | `/api/stocks/fetch/profiles` | 모든 주식 프로필 수집 | batchSize, delayMs |
+| GET | `/api/stocks/fetch/profiles/null-country` | Country가 Null인 주식 프로필 수집 | batchSize, delayMs |
+| GET | `/api/stocks/fetch/quotes/{symbol}` | 특정 주식 실시간 시세 조회 | symbol |
+| GET | `/api/stocks/fetch/quotes/all` | 모든 주식 실시간 시세 조회 | batchSize, delayMs |
+| GET | `/api/stocks/detail/{ticker}` | 주식 상세 프로필 정보 조회 | ticker |
+| GET | `/api/stocks/news` | 주식 관련 뉴스 조회 | symbol, from, to, count |
+| GET | `/api/stocks/market_news` | 마켓 뉴스 조회 | from, to, count |
+| GET | `/api/stocks/basic-financials/{symbol}` | 주식 기본 재무 지표 조회 | symbol |
+| GET | `/api/stocks/top-movers` | 상승/하락 상위 종목(Top Movers) 조회 | type, limit, market |
 
 ### 인증 관련 엔드포인트
 
@@ -447,6 +471,310 @@ curl 'http://localhost:8080/api/stocks/detail/AAPL'
   "success": false,
   "error": "No profile data available for ticker ABC",
   "message": "Profile data not found: ABC"
+}
+```
+
+### 주식 관련 뉴스 조회
+
+특정 기간 동안의 주식 관련 뉴스를 Finnhub API에서 가져와 제공합니다. 특정 회사의 뉴스만 가져오거나 일반 시장 뉴스를 가져올 수 있습니다.
+
+```
+GET /api/stocks/news
+```
+
+**파라미터**:
+- `symbol` (선택 사항): 특정 회사의 뉴스만 가져오려면 주식 심볼 입력 (예: AAPL)
+- `from` (선택 사항): 시작 날짜 (yyyy-MM-dd 형식, 기본값: 오늘)
+- `to` (선택 사항): 종료 날짜 (yyyy-MM-dd 형식, 기본값: 오늘)
+- `count` (선택 사항): 가져올 뉴스 항목 수 (기본값: 10)
+
+**사용 예시**:
+```
+curl 'http://localhost:8080/api/stocks/news?symbol=AAPL&from=2023-04-01&to=2023-04-15&count=3'
+```
+
+**응답 예시**:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "category": "technology",
+      "datetime": 1680364800,
+      "dateFormatted": "2023-04-01T12:00:00",
+      "headline": "Apple Announces New Product Line",
+      "id": 1234567,
+      "image": "https://example.com/images/apple-news.jpg",
+      "related": "AAPL",
+      "source": "Financial Times",
+      "summary": "Apple has announced a new product line that will be available next month...",
+      "url": "https://example.com/news/apple-new-product"
+    },
+    {
+      "category": "business",
+      "datetime": 1680451200,
+      "dateFormatted": "2023-04-02T12:00:00",
+      "headline": "Apple Stock Surges After Product Announcement",
+      "id": 1234568,
+      "image": "https://example.com/images/apple-stock.jpg",
+      "related": "AAPL",
+      "source": "Wall Street Journal",
+      "summary": "Apple's stock price increased by 3% following the announcement of...",
+      "url": "https://example.com/news/apple-stock-surge"
+    },
+    {
+      "category": "technology",
+      "datetime": 1680537600,
+      "dateFormatted": "2023-04-03T12:00:00",
+      "headline": "Analysts React to Apple's Latest Innovation",
+      "id": 1234569,
+      "image": "https://example.com/images/apple-analysts.jpg",
+      "related": "AAPL",
+      "source": "Bloomberg",
+      "summary": "Market analysts have provided positive feedback on Apple's latest...",
+      "url": "https://example.com/news/apple-analyst-reactions"
+    }
+  ],
+  "count": 3,
+  "message": "Successfully fetched 3 news items"
+}
+```
+
+**오류 응답**:
+- 잘못된 날짜 형식인 경우 (400 Bad Request)
+```json
+{
+  "success": false,
+  "message": "Invalid date format for 'from'. Expected format: yyyy-MM-dd"
+}
+```
+
+- 날짜 범위가 올바르지 않은 경우 (400 Bad Request)
+```json
+{
+  "success": false,
+  "message": "Invalid date range: 'from' date should be before or equal to 'to' date"
+}
+```
+
+- 서버 오류 발생 시 (500 Internal Server Error)
+```json
+{
+  "success": false,
+  "message": "Error fetching stock news"
+}
+```
+
+### 마켓 뉴스 조회
+
+일반 마켓 뉴스를 조회합니다. 특정 회사 뉴스가 아닌 전체 시장 관련 뉴스를 가져옵니다.
+
+```
+GET /api/stocks/market_news
+```
+
+**파라미터**:
+- `from` (선택 사항): 시작 날짜 (yyyy-MM-dd 형식, 기본값: 오늘)
+- `to` (선택 사항): 종료 날짜 (yyyy-MM-dd 형식, 기본값: 오늘)
+- `count` (선택 사항): 가져올 뉴스 항목 수 (기본값: 10)
+
+**사용 예시**:
+```
+curl 'http://localhost:8080/api/stocks/market_news?from=2024-04-27&to=2024-04-28&count=5'
+```
+
+**응답 예시**:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "category": "top news",
+      "datetime": 1714226460,
+      "headline": "My wife and I have $850,000 saved for retirement. I'm 66 and plan to work another four years. Should I do a Roth conversion?",
+      "id": 7361766,
+      "image": "https://static2.finnhub.io/file/publicdatany/finnhubimage/market_watch_logo.png",
+      "related": "",
+      "source": "MarketWatch",
+      "summary": ""I estimate that my wife and I will receive about $4,600 per month in Social Security."",
+      "url": "https://www.marketwatch.com/story/my-wife-and-i-have-850-000-saved-for-retirement-im-66-and-plan-to-work-another-four-years-should-i-do-a-roth-conversion-eac4af41"
+    },
+    {
+      "category": "top news",
+      "datetime": 1714226401,
+      "headline": "There's a new No. 1 U.S. airline—it's not Delta",
+      "id": 7361767,
+      "image": "https://image.cnbcfm.com/api/v1/image/107406621-1714075866391-gettyimages-926203958-img_2769_copy.jpeg?v=1714075986&w=1920&h=1080",
+      "related": "",
+      "source": "CNBC",
+      "summary": "WalletHub compared the nine largest U.S. airlines, plus one regional carrier, across three major categories.",
+      "url": "https://www.cnbc.com/2024/04/27/best-us-airlines-wallethub.html"
+    },
+    // ... 더 많은 뉴스 항목
+  ],
+  "count": 5,
+  "message": "Successfully fetched 5 market news items"
+}
+```
+
+**오류 응답**:
+- 잘못된 날짜 형식 (400 Bad Request)
+```json
+{
+  "success": false,
+  "message": "Invalid date format for 'from'. Expected format: yyyy-MM-dd"
+}
+```
+
+- 잘못된 날짜 범위 (400 Bad Request)
+```json
+{
+  "success": false,
+  "message": "Invalid date range: 'from' date should be before or equal to 'to' date"
+}
+```
+
+- 서버 오류 발생 시 (500 Internal Server Error)
+```json
+{
+  "success": false,
+  "message": "Error fetching market news"
+}
+```
+
+### 주식 기본 재무 지표 조회
+
+특정 주식 심볼의 주요 재무 지표를 Finnhub API에서 가져와 제공합니다.
+
+```
+GET /api/stocks/basic-financials/{symbol}
+```
+
+**파라미터**:
+- `symbol`: 주식 심볼 (예: AAPL, MSFT, GOOGL)
+
+**사용 예시**:
+```
+curl 'http://localhost:8080/api/stocks/basic-financials/AAPL'
+```
+
+**응답 예시**:
+```json
+{
+  "success": true,
+  "data": {
+    "symbol": "AAPL",
+    "marketCapitalization": 2901663.72,
+    "enterpriseValue": 2805858.7,
+    "peTTM": 30.2521,
+    "peExclExtraTTM": 30.2521,
+    "pb": 46.6594,
+    "pbQuarterly": 46.7108,
+    "psTTM": 8.0524,
+    "dividendYieldIndicatedAnnual": 0.0046,
+    "currentDividendYieldTTM": 0.0046,
+    "currentEv/freeCashFlowTTM": 28.4864,
+    "pcfShareTTM": 25.3794,
+    "pfcfShareTTM": 28.1526,
+    "ptbvQuarterly": 47.4308
+  },
+  "message": "Successfully fetched financial metrics for AAPL"
+}
+```
+
+**오류 응답**:
+- 주식을 찾을 수 없는 경우 (404 Not Found)
+```json
+{
+  "success": false,
+  "message": "Stock not found: XYZ"
+}
+```
+
+- 서버 오류 발생 시 (500 Internal Server Error)
+```json
+{
+  "success": false,
+  "message": "Error fetching financial metrics for AAPL"
+}
+```
+
+### 상승/하락 상위 종목(Top Movers) 조회
+
+시장에서 가장 큰 가격 변동을 보인 상위 종목들을 조회합니다. 상승 종목(Gainers)과 하락 종목(Losers)을 함께 제공합니다.
+
+```
+GET /api/stocks/top-movers
+```
+
+**파라미터**:
+- `type` (선택사항): "gainers" 또는 "losers" 또는 "all" (기본값: "all")
+- `limit` (선택사항): 각 카테고리별 반환할 주식 수 (기본값: 10)
+- `market` (선택사항): 특정 시장 필터링 (예: "NASDAQ", "NYSE")
+
+**사용 예시**:
+```
+curl 'http://localhost:8080/api/stocks/top-movers?type=all&limit=5&market=NYSE'
+```
+
+**응답 예시**:
+```json
+{
+  "success": true,
+  "data": {
+    "gainers": [
+      {
+        "symbol": "AAPL",
+        "name": "Apple Inc",
+        "currentPrice": 182.63,
+        "change": 5.25,
+        "percentChange": 2.96,
+        "marketCap": 2901663.72,
+        "industry": "Technology",
+        "volume": 12500000,
+        "avgVolume": 10000000,
+        "volumeRatio": 1.25
+      },
+      // ... 더 많은 상승 종목
+    ],
+    "losers": [
+      {
+        "symbol": "MSFT",
+        "name": "Microsoft Corporation",
+        "currentPrice": 327.81,
+        "change": -8.33,
+        "percentChange": -2.48,
+        "marketCap": 2500000.00,
+        "industry": "Technology",
+        "volume": 8500000,
+        "avgVolume": 7000000,
+        "volumeRatio": 1.21
+      },
+      // ... 더 많은 하락 종목
+    ]
+  },
+  "count": {
+    "gainers": 5,
+    "losers": 5
+  },
+  "message": "Successfully fetched top movers"
+}
+```
+
+**오류 응답**:
+- 잘못된 타입 파라미터 (400 Bad Request)
+```json
+{
+  "success": false,
+  "message": "Invalid type parameter. Use 'gainers', 'losers', or 'all'."
+}
+```
+
+- 서버 오류 발생 시 (500 Internal Server Error)
+```json
+{
+  "success": false,
+  "message": "Error fetching top movers"
 }
 ```
 

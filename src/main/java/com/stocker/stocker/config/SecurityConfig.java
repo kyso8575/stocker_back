@@ -59,20 +59,11 @@ public class SecurityConfig {
             .formLogin(form -> form.disable())  // 폼 로그인 비활성화
             .httpBasic(basic -> basic.disable())  // HTTP Basic 인증 비활성화
             .authorizeHttpRequests(auth -> 
-                auth.requestMatchers("/api/auth/**").permitAll()
-                    .requestMatchers("/api/stocks/count").permitAll()
-                    .requestMatchers("/api/stocks/count/null-country").permitAll()
-                    .requestMatchers("/api/stocks/sample").permitAll()
-                    .requestMatchers("/api/stocks/quote/**").permitAll()
-                    .requestMatchers("/api/stocks/detail/**").permitAll()
-                    .requestMatchers("/api/stocks/fetch/quotes/**").permitAll()
-                    .requestMatchers("/api/test/**").permitAll()
-                    .anyRequest().authenticated()
+                // 모든 요청에 대해 인증 없이 접근 허용
+                auth.anyRequest().permitAll()
             )
             .sessionManagement(session -> 
-                session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                .maximumSessions(1)
-                .maxSessionsPreventsLogin(false)
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
             .exceptionHandling(exceptions ->
                 exceptions
@@ -112,7 +103,15 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("*"));  // 모든 오리진 허용, 프로덕션에서는 특정 도메인으로 제한하세요
+        // 명시적인 오리진 목록 - IP 주소 추가
+        configuration.setAllowedOrigins(Arrays.asList(
+            "http://localhost:3000",  // React 기본 개발 서버
+            "http://localhost:3001",  // 현재 사용 중인 포트
+            "http://192.168.50.234:3001", // IP 주소로 접근하는 클라이언트
+            "http://localhost:5173",  // Vite 기본 개발 서버
+            "http://localhost:8080"   // 같은 서버의 다른 포트
+            // 필요한 경우 여기에 프로덕션 URL 추가
+        ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);

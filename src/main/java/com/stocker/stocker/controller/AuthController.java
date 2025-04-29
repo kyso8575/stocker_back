@@ -116,7 +116,7 @@ public class AuthController {
      * @param request HTTP 요청
      * @return 로그인 결과
      */
-    @PostMapping("/login-rest")
+    @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest, HttpServletRequest request) {
         logger.info("REST API 로그인 요청: {}", loginRequest.getUsername());
         
@@ -164,7 +164,7 @@ public class AuthController {
      * @param response HTTP 응답
      * @return 로그아웃 결과
      */
-    @PostMapping("/logout-rest")
+    @PostMapping("/logout")
     public ResponseEntity<?> logoutUser(HttpServletRequest request, HttpServletResponse response) {
         HttpSession session = request.getSession(false);
         if (session != null) {

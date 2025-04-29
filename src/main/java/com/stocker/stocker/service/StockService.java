@@ -5,9 +5,12 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +37,8 @@ import com.stocker.stocker.repository.StockRepository;
 import com.stocker.stocker.domain.StockQuote;
 import com.stocker.stocker.dto.StockQuoteDto;
 import com.stocker.stocker.repository.StockQuoteRepository;
+import com.stocker.stocker.domain.NewsItem;
+import com.stocker.stocker.dto.BasicFinancialsDto;
 
 import jakarta.transaction.Transactional;
 
@@ -600,6 +605,30 @@ public class StockService {
     }
     
     /**
+     * 특정 심볼의 주식 상세 프로필 정보를 Finnhub API에서 가져와 데이터베이스에 저장하고 반환합니다.
+     * @param symbol 주식 심볼 (예: AAPL, MSFT)
+     * @return 업데이트된 주식 정보
+     */
+    @Transactional
+    public Stock fetchAndSaveStockProfile(String symbol) {
+        logger.info("Fetching profile for specific stock symbol: {}", symbol);
+        
+        // 주식 심볼 찾기
+        Stock stock = stockRepository.findByTicker(symbol)
+                .orElseThrow(() -> new IllegalArgumentException("Stock with ticker " + symbol + " not found"));
+        
+        // 주식 상세 정보 가져오기
+        boolean updated = fetchAndUpdateStockProfile(stock);
+        
+        if (!updated) {
+            throw new RuntimeException("Failed to fetch and update profile for " + symbol);
+        }
+        
+        // 업데이트된 주식 정보 저장 및 반환
+        return stockRepository.save(stock);
+    }
+    
+    /**
      * 모든 주식의 시세 정보를 Finnhub API에서 가져와 데이터베이스에 저장하고 반환합니다.
      * @param batchSize 한 번에 처리할 주식 수
      * @param delayMs API 호출 사이의 지연 시간(밀리초)
@@ -670,5 +699,284 @@ public class StockService {
             successCount + failedCount, successCount, failedCount);
         
         return results;
+    }
+
+    /**
+     * 특정 기간 동안의 주식 관련 뉴스를 가져옵니다.
+     * @param symbol 주식 심볼 (특정 회사 뉴스만 필요한 경우)
+     * @param from 시작 날짜 (yyyy-MM-dd 형식)
+     * @param to 종료 날짜 (yyyy-MM-dd 형식)
+     * @param count 가져올 뉴스 항목 수 (최대)
+     * @return 뉴스 항목 목록
+     */
+    public List<NewsItem> fetchCompanyNews(String symbol, String from, String to, int count) {
+        logger.info("Fetching company news for {} from {} to {}, max count: {}", 
+                    symbol != null ? symbol : "all companies", from, to, count);
+        
+        String url;
+        
+        if (symbol != null && !symbol.isEmpty()) {
+            // 특정 회사의 뉴스를 가져오는 API 엔드포인트
+            url = String.format("https://finnhub.io/api/v1/company-news?symbol=%s&from=%s&to=%s", 
+                        symbol.toUpperCase(), from, to);
+        } else {
+            // 일반 시장 뉴스를 가져오는 API 엔드포인트
+            url = String.format("https://finnhub.io/api/v1/news?category=general&from=%s&to=%s", 
+                        from, to);
+        }
+        
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Finnhub-Token", apiKey);
+        
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+        
+        try {
+            ResponseEntity<NewsItem[]> response = restTemplate.exchange(
+                url, 
+                HttpMethod.GET,
+                entity,
+                NewsItem[].class
+            );
+            
+            NewsItem[] newsItems = response.getBody();
+            
+            if (newsItems != null && newsItems.length > 0) {
+                logger.info("Successfully fetched {} news items", newsItems.length);
+                
+                // 모든 뉴스 항목을 List로 변환
+                List<NewsItem> allNews = new ArrayList<>(Arrays.asList(newsItems));
+                
+                // datetime 기준 내림차순으로 정렬 (최신 뉴스가 먼저 오도록)
+                Collections.sort(allNews, (a, b) -> {
+                    if (a.getDatetime() == null || b.getDatetime() == null) {
+                        return 0; // null 값이 있으면 순서 유지
+                    }
+                    return b.getDatetime().compareTo(a.getDatetime()); // 내림차순 정렬
+                });
+                
+                // 요청한 개수만큼 필터링
+                List<NewsItem> filteredNews = new ArrayList<>();
+                for (int i = 0; i < Math.min(count, allNews.size()); i++) {
+                    filteredNews.add(allNews.get(i));
+                }
+                
+                logger.info("Returning {} news items sorted by most recent first", filteredNews.size());
+                return filteredNews;
+            } else {
+                logger.warn("No news data returned from Finnhub API");
+                return new ArrayList<>();
+            }
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                logger.error("API rate limit exceeded: {}", e.getMessage());
+            } else {
+                logger.error("Error fetching news from Finnhub API: {}", e.getMessage());
+            }
+            return new ArrayList<>();
+        } catch (Exception e) {
+            logger.error("Error fetching news from Finnhub API: {}", e.getMessage(), e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * 마켓 뉴스를 가져옵니다.
+     * @param from 시작 날짜 (yyyy-MM-dd 형식)
+     * @param to 종료 날짜 (yyyy-MM-dd 형식)
+     * @param count 가져올 뉴스 항목 수
+     * @return 뉴스 항목 목록
+     */
+    public List<NewsItem> fetchMarketNews(String from, String to, int count) {
+        logger.info("마켓 뉴스 요청 - from: {}, to: {}, count: {}", from, to, count);
+        
+        // 마켓 뉴스 API 엔드포인트 URL 구성 - 카테고리를 general로 설정
+        String url = String.format("https://finnhub.io/api/v1/news?category=general&from=%s&to=%s", from, to);
+        
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Finnhub-Token", apiKey);
+        
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+        
+        try {
+            ResponseEntity<NewsItem[]> response = restTemplate.exchange(
+                url, 
+                HttpMethod.GET,
+                entity,
+                NewsItem[].class
+            );
+            
+            NewsItem[] newsItems = response.getBody();
+            
+            if (newsItems != null && newsItems.length > 0) {
+                logger.info("Successfully fetched {} market news items", newsItems.length);
+                
+                // 모든 뉴스 항목을 List로 변환
+                List<NewsItem> allNews = new ArrayList<>(Arrays.asList(newsItems));
+                
+                // datetime 기준 내림차순으로 정렬 (최신 뉴스가 먼저 오도록)
+                Collections.sort(allNews, (a, b) -> {
+                    if (a.getDatetime() == null || b.getDatetime() == null) {
+                        return 0; // null 값이 있으면 순서 유지
+                    }
+                    return b.getDatetime().compareTo(a.getDatetime()); // 내림차순 정렬
+                });
+                
+                // 요청한 개수만큼 필터링
+                List<NewsItem> filteredNews = new ArrayList<>();
+                for (int i = 0; i < Math.min(count, allNews.size()); i++) {
+                    filteredNews.add(allNews.get(i));
+                }
+                
+                logger.info("Returning {} market news items sorted by most recent first", filteredNews.size());
+                return filteredNews;
+            } else {
+                logger.warn("No market news data returned from Finnhub API");
+                return new ArrayList<>();
+            }
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                logger.error("API rate limit exceeded: {}", e.getMessage());
+            } else {
+                logger.error("Error fetching market news from Finnhub API: {}", e.getMessage());
+            }
+            return new ArrayList<>();
+        } catch (Exception e) {
+            logger.error("Error fetching market news from Finnhub API: {}", e.getMessage(), e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * 특정 주식의 주요 재무 지표를 Finnhub API에서 가져옵니다.
+     * @param symbol 주식 심볼 (예: AAPL, MSFT)
+     * @return 주요 재무 지표
+     */
+    public BasicFinancialsDto fetchBasicFinancials(String symbol) {
+        logger.info("Fetching basic financials for stock symbol: {}", symbol);
+        
+        String url = String.format("https://finnhub.io/api/v1/stock/metric?symbol=%s&metric=all", 
+                    symbol.toUpperCase());
+        
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Finnhub-Token", apiKey);
+        
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+        
+        try {
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                url, 
+                HttpMethod.GET,
+                entity,
+                new ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+            
+            Map<String, Object> responseData = response.getBody();
+            
+            if (responseData != null && responseData.containsKey("metric")) {
+                logger.info("Successfully fetched basic financials for {}", symbol);
+                
+                @SuppressWarnings("unchecked")
+                Map<String, Object> metrics = (Map<String, Object>) responseData.get("metric");
+                
+                // DTO 객체 생성 및 필요한 데이터만 추출하여 설정
+                BasicFinancialsDto dto = new BasicFinancialsDto();
+                dto.setSymbol(symbol.toUpperCase());
+                
+                // 각 필드에 대해 데이터 설정 (null 체크 포함)
+                setMetricValueToBigDecimal(metrics, "marketCapitalization", dto::setMarketCapitalization);
+                setMetricValueToBigDecimal(metrics, "enterpriseValue", dto::setEnterpriseValue);
+                setMetricValueToBigDecimal(metrics, "peTTM", dto::setPeTTM);
+                setMetricValueToBigDecimal(metrics, "peExclExtraTTM", dto::setPeExclExtraTTM);
+                setMetricValueToBigDecimal(metrics, "pb", dto::setPb);
+                setMetricValueToBigDecimal(metrics, "pbQuarterly", dto::setPbQuarterly);
+                setMetricValueToBigDecimal(metrics, "psTTM", dto::setPsTTM);
+                setMetricValueToBigDecimal(metrics, "dividendYieldIndicatedAnnual", dto::setDividendYieldIndicatedAnnual);
+                setMetricValueToBigDecimal(metrics, "currentDividendYieldTTM", dto::setCurrentDividendYieldTTM);
+                setMetricValueToBigDecimal(metrics, "currentEv/freeCashFlowTTM", dto::setCurrentEvFreeCashFlowTTM);
+                setMetricValueToBigDecimal(metrics, "pcfShareTTM", dto::setPcfShareTTM);
+                setMetricValueToBigDecimal(metrics, "pfcfShareTTM", dto::setPfcfShareTTM);
+                setMetricValueToBigDecimal(metrics, "ptbvQuarterly", dto::setPtbvQuarterly);
+                
+                // 기술적 지표 추가
+                
+                // 52주 최고/최저가
+                setMetricValueToBigDecimal(metrics, "52WeekHigh", dto::setWeekHigh52);
+                if (metrics.containsKey("52WeekHighDate") && metrics.get("52WeekHighDate") != null) {
+                    dto.setWeekHighDate52(metrics.get("52WeekHighDate").toString());
+                }
+                setMetricValueToBigDecimal(metrics, "52WeekLow", dto::setWeekLow52);
+                if (metrics.containsKey("52WeekLowDate") && metrics.get("52WeekLowDate") != null) {
+                    dto.setWeekLowDate52(metrics.get("52WeekLowDate").toString());
+                }
+                
+                // 변동성 지표
+                setMetricValueToBigDecimal(metrics, "beta", dto::setBeta);
+                setMetricValueToBigDecimal(metrics, "3MonthADReturnStd", dto::setVolatility90Day);  // 90일 변동성으로 사용
+                
+                // 거래량 지표
+                setMetricValueToBigDecimal(metrics, "10DayAverageTradingVolume", dto::setDayAverageTradingVolume10);
+                setMetricValueToBigDecimal(metrics, "3MonthAverageTradingVolume", dto::setMonthAverageTradingVolume3);
+                
+                // 수익률 지표
+                setMetricValueToBigDecimal(metrics, "5DayPriceReturnDaily", dto::setDayPriceReturnDaily5);
+                setMetricValueToBigDecimal(metrics, "13WeekPriceReturnDaily", dto::setWeekPriceReturnDaily13);
+                setMetricValueToBigDecimal(metrics, "26WeekPriceReturnDaily", dto::setWeekPriceReturnDaily26);
+                setMetricValueToBigDecimal(metrics, "52WeekPriceReturnDaily", dto::setWeekPriceReturnDaily52);
+                setMetricValueToBigDecimal(metrics, "yearToDatePriceReturnDaily", dto::setYearToDatePriceReturnDaily);
+                
+                // 상대 강도 지표
+                setMetricValueToBigDecimal(metrics, "priceRelativeToS&P50013Week", dto::setPriceRelativeToSP50013Week);
+                setMetricValueToBigDecimal(metrics, "priceRelativeToS&P50026Week", dto::setPriceRelativeToSP50026Week);
+                setMetricValueToBigDecimal(metrics, "priceRelativeToS&P5004Week", dto::setPriceRelativeToSP5004Week);
+                setMetricValueToBigDecimal(metrics, "priceRelativeToS&P50052Week", dto::setPriceRelativeToSP50052Week);
+                setMetricValueToBigDecimal(metrics, "priceRelativeToS&P500Ytd", dto::setPriceRelativeToSP500Ytd);
+                
+                // 주당순이익(EPS) 추가
+                setMetricValueToBigDecimal(metrics, "epsTTM", dto::setEpsTTM);
+                
+                return dto;
+            } else {
+                logger.warn("No financial data returned from Finnhub API for ticker: {}", symbol);
+                throw new RuntimeException("Failed to get financial data for " + symbol);
+            }
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new IllegalArgumentException("Stock with ticker " + symbol + " not found");
+            } else if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                logger.error("API rate limit exceeded when fetching financials for {}", symbol);
+                throw new RuntimeException("API rate limit exceeded. Please try again later.", e);
+            } else {
+                logger.error("Error fetching financial data for {}: {}", symbol, e.getMessage());
+                throw new RuntimeException("Failed to fetch financial data for " + symbol, e);
+            }
+        } catch (Exception e) {
+            logger.error("Error fetching financial data for {}: {}", symbol, e.getMessage(), e);
+            throw new RuntimeException("Failed to fetch financial data for " + symbol, e);
+        }
+    }
+
+    /**
+     * 메트릭 맵에서 값을 추출하여 BigDecimal로 변환 후 DTO에 설정합니다.
+     */
+    private void setMetricValueToBigDecimal(Map<String, Object> metrics, String key, 
+                                            Consumer<BigDecimal> setter) {
+        if (metrics.containsKey(key) && metrics.get(key) != null) {
+            try {
+                Object value = metrics.get(key);
+                if (value instanceof Number) {
+                    setter.accept(new BigDecimal(value.toString()));
+                } else if (value instanceof String) {
+                    // 문자열인 경우, 숫자로 변환 시도
+                    setter.accept(new BigDecimal((String) value));
+                }
+            } catch (NumberFormatException e) {
+                logger.warn("Failed to convert metric value for key {}: {}", key, e.getMessage());
+                // 변환 실패 시 null 설정 (기본값)
+                setter.accept(null);
+            }
+        } else {
+            // 해당 키가 없거나 값이 null인 경우
+            setter.accept(null);
+        }
     }
 } 
