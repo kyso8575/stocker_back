@@ -1,4 +1,4 @@
-package stocker_back.stocker_back;
+package com.stocker_back.stocker_back;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

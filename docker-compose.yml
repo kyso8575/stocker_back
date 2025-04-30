@@ -13,6 +13,29 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     restart: unless-stopped
+    networks:
+      - stocker-network
+      
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: stocker-backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/stockerdb
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+    networks:
+      - stocker-network
+    restart: unless-stopped
+
+networks:
+  stocker-network:
+    driver: bridge
 
 volumes:
   postgres-data: 
