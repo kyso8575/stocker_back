@@ -58,20 +58,35 @@ docker-compose down -v
 
 #### `/api/stocks/fetch/symbols`
 
-이 엔드포인트는 Finnhub API에서 지정된 거래소의 주식 심볼 데이터를 가져와 데이터베이스에 저장합니다.
+이 엔드포인트는 Finnhub API에서 주식 심볼 데이터를 가져와 데이터베이스에 저장합니다. 모든 심볼을 가져오거나 특정 심볼 하나만 선택적으로 가져올 수 있습니다.
 
 **메서드**: GET
 
 **요청 파라미터**:
 - `exchange` (선택, 기본값: "US"): 데이터를 가져올 거래소 코드(예: "US", "KO" 등)
+- `symbol` (선택): 특정 심볼 코드(예: "AAPL", "MSFT"). 입력 시 해당 심볼만 저장, 미입력 시 모든 심볼 저장
+
+**사용 예시**:
+- 모든 심볼 가져오기: `/api/stocks/fetch/symbols?exchange=US`
+- 특정 심볼만 가져오기: `/api/stocks/fetch/symbols?symbol=AAPL&exchange=US`
 
 **응답 형식**: JSON
 ```json
+// 모든 심볼 가져온 경우
 {
   "success": true,
   "exchange": "US",
   "savedCount": 8000,
   "message": "Successfully saved 8000 stock symbols for exchange US"
+}
+
+// 특정 심볼만 가져온 경우
+{
+  "success": true,
+  "exchange": "US",
+  "symbol": "AAPL",
+  "savedCount": 1,
+  "message": "Symbol AAPL successfully saved for exchange US"
 }
 ```
 
@@ -80,6 +95,7 @@ docker-compose down -v
 {
   "success": false,
   "exchange": "US",
+  "symbol": "AAPL", // symbol 파라미터 사용 시
   "error": "오류 메시지"
 }
 ```
@@ -88,6 +104,7 @@ docker-compose down -v
 - 배치 처리: 설정된 배치 크기(기본값: 50)에 따라 대량의 데이터를 효율적으로 저장합니다.
 - 로깅: 데이터 저장 진행률을 퍼센트로 로그에 기록합니다.
 - 중복 방지: 심볼의 고유성이 보장됩니다(UK_SYMBOL 제약 조건).
+- 선택적 필터링: 특정 심볼만 선택적으로 저장할 수 있습니다.
 
 **데이터 저장 위치**: `stock_info` 테이블
 
@@ -109,14 +126,6 @@ docker-compose down -v
 | POST | `/api/auth/logout` | RESTful API용 로그아웃 | - |
 | GET | `/api/users/{username}` | 사용자 정보 조회 | username |
 | **주식 데이터 수집 API** |
-| GET | `/api/stocks/fetch/symbols` | Finnhub API에서 주식 심볼 데이터 수집 및 DB 저장 | exchange (기본값: "US") |
-| GET | `/api/stocks/fetch/profiles` | 모든 주식 프로필 수집 | batchSize, delayMs |
-| GET | `/api/stocks/fetch/profiles/null-country` | Country가 Null인 주식 프로필 수집 | batchSize, delayMs |
-| GET | `/api/stocks/fetch/quotes/{symbol}` | 특정 주식 실시간 시세 조회 | symbol |
-| GET | `/api/stocks/fetch/quotes/all` | 모든 주식 실시간 시세 조회 | batchSize, delayMs |
-| **주식 정보 공유 API** |
-| GET | `/api/stocks/detail/{ticker}` | 주식 상세 프로필 정보 조회 | ticker |
-| GET | `/api/stocks/news` | 주식 관련 뉴스 조회 | symbol, from, to, count |
-| GET | `/api/stocks/market_news` | 마켓 뉴스 조회 | from, to, count |
-| GET | `/api/stocks/basic-financials/{symbol}` | 주식 기본 재무 지표 조회 | symbol |
-| GET | `/api/stocks/top-movers` | 상승/하락 상위 종목(Top Movers) 조회 | type, limit, market |
+| GET | `/api/stocks/fetch/symbols` | Finnhub API에서 주식 심볼 데이터 수집 및 DB 저장 | exchange (기본값: "US"), symbol (선택) |
+
+
