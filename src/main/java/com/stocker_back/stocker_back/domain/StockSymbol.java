@@ -65,9 +65,6 @@ public class StockSymbol {
     @Column(length = 500)
     private String logo;
     
-    @Column
-    private Double marketCapitalization;
-    
     @Column(length = 200)
     private String name;
     

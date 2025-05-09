@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.List;
 
 @Repository
 public interface StockSymbolRepository extends JpaRepository<StockSymbol, Long> {
@@ -29,4 +30,7 @@ public interface StockSymbolRepository extends JpaRepository<StockSymbol, Long> 
     
     // 빈 프로필인 심볼 수
     long countByProfileEmptyTrue();
+    
+    // 빈 프로필이 아닌(유효한 데이터가 있는) 심볼 목록 가져오기
+    List<StockSymbol> findByProfileEmptyFalse();
 } 

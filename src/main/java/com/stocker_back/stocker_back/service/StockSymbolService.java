@@ -2,11 +2,21 @@ package com.stocker_back.stocker_back.service;
 
 import com.stocker_back.stocker_back.config.FinnhubApiConfig;
 import com.stocker_back.stocker_back.domain.StockSymbol;
+import com.stocker_back.stocker_back.domain.Quote;
+import com.stocker_back.stocker_back.domain.FinancialMetrics;
 import com.stocker_back.stocker_back.dto.StockSymbolDTO;
 import com.stocker_back.stocker_back.dto.CompanyProfileDTO;
+import com.stocker_back.stocker_back.dto.QuoteDTO;
+import com.stocker_back.stocker_back.dto.FinancialMetricsDTO;
+import com.stocker_back.stocker_back.dto.CompanyNewsDTO;
+import com.stocker_back.stocker_back.dto.FinancialMetricsResult;
 import com.stocker_back.stocker_back.repository.StockSymbolRepository;
-import lombok.RequiredArgsConstructor;
+import com.stocker_back.stocker_back.repository.QuoteRepository;
+import com.stocker_back.stocker_back.repository.FinancialMetricsRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
@@ -21,19 +31,37 @@ import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.http.HttpStatus;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class StockSymbolService {
 
     private final RestTemplate restTemplate;
     private final StockSymbolRepository stockSymbolRepository;
+    private final QuoteRepository quoteRepository;
+    private final FinancialMetricsRepository financialMetricsRepository;
     private final FinnhubApiConfig finnhubApiConfig;
+    
+    public StockSymbolService(
+        @Qualifier("customRestTemplate") RestTemplate restTemplate,
+        StockSymbolRepository stockSymbolRepository,
+        QuoteRepository quoteRepository,
+        FinancialMetricsRepository financialMetricsRepository,
+        FinnhubApiConfig finnhubApiConfig) {
+        this.restTemplate = restTemplate;
+        this.stockSymbolRepository = stockSymbolRepository;
+        this.quoteRepository = quoteRepository;
+        this.financialMetricsRepository = financialMetricsRepository;
+        this.finnhubApiConfig = finnhubApiConfig;
+    }
+    
+    @PersistenceContext
+    private EntityManager entityManager;
     
     @Value("${spring.jpa.properties.hibernate.jdbc.batch_size:200}")
     private int batchSize; // 배치 크기를 50에서 200으로 증가
@@ -482,7 +510,6 @@ public class StockSymbolService {
         symbol.setFinnhubIndustry(profileDTO.getFinnhubIndustry());
         symbol.setIpo(profileDTO.getIpo());
         symbol.setLogo(profileDTO.getLogo());
-        symbol.setMarketCapitalization(profileDTO.getMarketCapitalization());
         symbol.setName(profileDTO.getName());
         symbol.setPhone(profileDTO.getPhone());
         symbol.setShareOutstanding(profileDTO.getShareOutstanding());
@@ -544,6 +571,724 @@ public class StockSymbolService {
             log.error("Error fetching and saving company profile for symbol {}: {}", 
                     symbol, e.getMessage(), e);
             return stockSymbol;
+        }
+    }
+
+    /**
+     * Fetch quote data for all stock symbols from Finnhub API and save them to the database
+     * @param batchSize Number of symbols to process in a batch (default: 20)
+     * @param delayMs Delay between API calls in milliseconds to avoid rate limits (default: 500)
+     * @return The number of successfully fetched and saved quotes
+     */
+    public int fetchAndSaveAllQuotes(int batchSize, int delayMs) {
+        log.info("Fetching quotes for all symbols with batchSize={}, delayMs={}", batchSize, delayMs);
+        
+        if (batchSize <= 0) {
+            batchSize = 20;
+        }
+        
+        // Get all symbols from the database
+        List<StockSymbol> allSymbols = stockSymbolRepository.findAll();
+        log.info("Found {} stock symbols to process for quotes", allSymbols.size());
+        
+        int successCount = 0;
+        int errorCount = 0;
+        int totalProcessed = 0;
+        
+        // 배치 처리를 위한 리스트
+        List<Quote> batch = new ArrayList<>(batchSize);
+        
+        for (int i = 0; i < allSymbols.size(); i++) {
+            StockSymbol symbol = allSymbols.get(i);
+            totalProcessed++;
+            
+            try {
+                log.info("Processing quote for symbol {}/{}: {}", 
+                        totalProcessed, allSymbols.size(), symbol.getSymbol());
+                
+                // Fetch quote for this symbol
+                QuoteDTO quoteDTO = fetchQuoteFromFinnhub(symbol.getSymbol());
+                
+                if (quoteDTO != null && quoteDTO.getCurrentPrice() != null) {
+                    // Create a Quote entity
+                    Quote quote = Quote.builder()
+                            .symbol(symbol.getSymbol())
+                            .currentPrice(quoteDTO.getCurrentPrice())
+                            .change(quoteDTO.getChange())
+                            .percentChange(quoteDTO.getPercentChange())
+                            .highPrice(quoteDTO.getHighPrice())
+                            .lowPrice(quoteDTO.getLowPrice())
+                            .openPrice(quoteDTO.getOpenPrice())
+                            .previousClosePrice(quoteDTO.getPreviousClosePrice())
+                            .timestamp(quoteDTO.getTimestamp())
+                            .build();
+                    
+                    // Add to batch
+                    batch.add(quote);
+                    successCount++;
+                    
+                    log.debug("Added quote for symbol {} to batch ({}/{})", 
+                             symbol.getSymbol(), totalProcessed, allSymbols.size());
+                } else {
+                    errorCount++;
+                    log.debug("Failed to fetch quote data for symbol: {} ({}/{})", 
+                             symbol.getSymbol(), totalProcessed, allSymbols.size());
+                }
+                
+                // 배치 크기에 도달하면 저장
+                if (batch.size() >= batchSize) {
+                    // 별도의 트랜잭션으로 배치 저장
+                    saveQuoteBatch(batch);
+                    log.info("Saved batch of {} quotes (batch: {}, total processed: {}/{})", 
+                            batch.size(), 
+                            (totalProcessed / batchSize), 
+                            totalProcessed, 
+                            allSymbols.size());
+                    batch.clear();
+                }
+                
+                // Log progress
+                if (totalProcessed % 10 == 0 || totalProcessed == allSymbols.size()) {
+                    log.info("Progress: {}/{} symbols processed ({}%) - success: {}, errors: {}", 
+                             totalProcessed, allSymbols.size(), 
+                             (totalProcessed * 100 / allSymbols.size()), 
+                             successCount, errorCount);
+                }
+                
+                // Add delay to avoid rate limiting
+                if (i < allSymbols.size() - 1 && delayMs > 0) {
+                    Thread.sleep(delayMs);
+                }
+            } catch (InterruptedException e) {
+                log.error("Thread interrupted during quote fetch", e);
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                log.error("Error fetching quote for symbol {}: {}", symbol.getSymbol(), e.getMessage());
+                errorCount++;
+            }
+        }
+        
+        // 남은 배치 저장
+        if (!batch.isEmpty()) {
+            // 별도의 트랜잭션으로 배치 저장
+            saveQuoteBatch(batch);
+            log.info("Saved final batch of {} quotes", batch.size());
+        }
+        
+        log.info("Completed quote fetch: {} successful, {} errors", successCount, errorCount);
+        return successCount;
+    }
+    
+    /**
+     * 견적 데이터 배치를 저장합니다.
+     * @param quoteBatch 저장할 Quote 배치
+     * @return 저장된 Quote 목록
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public List<Quote> saveQuoteBatch(List<Quote> quoteBatch) {
+        // 저장 전 로그
+        log.info("Saving batch of {} quotes to database", quoteBatch.size());
+        
+        // 심플하게 배치 저장 수행 - 회사 프로필 배치 저장과 동일한 방식
+        List<Quote> savedQuotes = quoteRepository.saveAll(quoteBatch);
+        
+        // 저장 후 로그
+        log.info("Successfully saved {} quotes to database", savedQuotes.size());
+        
+        return savedQuotes;
+    }
+
+    /**
+     * Fetch quote data for a specific stock symbol from Finnhub API and save it to the database
+     * @param symbol Stock symbol (e.g., AAPL)
+     * @return The saved Quote entity
+     */
+    @Transactional
+    public Quote fetchAndSaveQuote(String symbol) {
+        log.info("Fetching quote data for symbol: {}", symbol);
+        
+        QuoteDTO quoteDTO = fetchQuoteFromFinnhub(symbol);
+        
+        if (quoteDTO == null || quoteDTO.getCurrentPrice() == null) {
+            log.warn("No quote data found for symbol: {}", symbol);
+            return null;
+        }
+        
+        // Create a new Quote entity
+        Quote quote = Quote.builder()
+                .symbol(symbol)
+                .currentPrice(quoteDTO.getCurrentPrice())
+                .change(quoteDTO.getChange())
+                .percentChange(quoteDTO.getPercentChange())
+                .highPrice(quoteDTO.getHighPrice())
+                .lowPrice(quoteDTO.getLowPrice())
+                .openPrice(quoteDTO.getOpenPrice())
+                .previousClosePrice(quoteDTO.getPreviousClosePrice())
+                .timestamp(quoteDTO.getTimestamp())
+                .build();
+        
+        log.info("Saving quote data for symbol: {}", symbol);
+        return quoteRepository.save(quote);
+    }
+    
+    /**
+     * Fetch quote data from Finnhub API
+     * @param symbol Stock symbol
+     * @return QuoteDTO containing the quote data
+     */
+    private QuoteDTO fetchQuoteFromFinnhub(String symbol) {
+        // Build the URL for Finnhub API
+        String url = UriComponentsBuilder.newInstance()
+                .scheme("https")
+                .host("finnhub.io")
+                .path("/api/v1/quote")
+                .queryParam("symbol", symbol)
+                .queryParam("token", finnhubApiConfig.getApiKey())
+                .toUriString();
+        
+        try {
+            // Call the Finnhub API
+            ResponseEntity<QuoteDTO> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    null,
+                    QuoteDTO.class
+            );
+            
+            return response.getBody();
+        } catch (HttpClientErrorException e) {
+            log.error("Error fetching quote data for symbol {}: {}", symbol, e.getMessage());
+            if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                log.warn("Rate limit exceeded for Finnhub API. Please try again later.");
+            }
+            return null;
+        } catch (Exception e) {
+            log.error("Unexpected error fetching quote data for symbol {}: {}", symbol, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Fetch company news from Finnhub API for a specific stock symbol
+     * 
+     * @param symbol Stock symbol (e.g., AAPL)
+     * @param from Start date in format YYYY-MM-DD
+     * @param to End date in format YYYY-MM-DD
+     * @param count Optional limit on number of news items to return
+     * @return List of company news items
+     */
+    public List<CompanyNewsDTO> fetchCompanyNews(String symbol, String from, String to, Integer count) {
+        log.info("Fetching company news for symbol: {}, from: {}, to: {}, count: {}", symbol, from, to, count);
+        
+        try {
+            // Build the Finnhub API URL
+            String url = UriComponentsBuilder.newInstance()
+                    .scheme("https")
+                    .host("finnhub.io")
+                    .path("/api/v1/company-news")
+                    .queryParam("symbol", symbol)
+                    .queryParam("from", from)
+                    .queryParam("to", to)
+                    .queryParam("token", finnhubApiConfig.getApiKey())
+                    .toUriString();
+            
+            log.debug("Calling Finnhub API: {}", url);
+            
+            // Call Finnhub API
+            ResponseEntity<List<CompanyNewsDTO>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    null,
+                    new ParameterizedTypeReference<List<CompanyNewsDTO>>() {}
+            );
+            
+            List<CompanyNewsDTO> newsItems = response.getBody();
+            
+            if (newsItems == null || newsItems.isEmpty()) {
+                log.warn("No news found for symbol: {} in date range {} to {}", symbol, from, to);
+                return Collections.emptyList();
+            }
+            
+            log.info("Fetched {} news items for {}", newsItems.size(), symbol);
+            
+            // Apply count limit if specified
+            if (count != null && count > 0 && count < newsItems.size()) {
+                return newsItems.subList(0, count);
+            }
+            
+            return newsItems;
+        } catch (HttpClientErrorException e) {
+            log.error("Error fetching company news for symbol {}: {} - {}", 
+                     symbol, e.getStatusCode(), e.getResponseBodyAsString(), e);
+            
+            if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                log.warn("Rate limit exceeded when calling Finnhub API");
+            }
+            
+            throw e;
+        } catch (Exception e) {
+            log.error("Error fetching company news for symbol {}: ", symbol, e);
+            throw e;
+        }
+    }
+
+    /**
+     * Fetch general market news from Finnhub API
+     * 
+     * @param from Start date in format YYYY-MM-DD
+     * @param to End date in format YYYY-MM-DD
+     * @param count Optional limit on number of news items to return
+     * @return List of market news items
+     */
+    public List<CompanyNewsDTO> fetchMarketNews(String from, String to, Integer count) {
+        log.info("Fetching market news from: {}, to: {}, count: {}", from, to, count);
+        
+        try {
+            // Build the Finnhub API URL
+            String url = UriComponentsBuilder.newInstance()
+                    .scheme("https")
+                    .host("finnhub.io")
+                    .path("/api/v1/news")
+                    .queryParam("category", "general")
+                    .queryParam("from", from)
+                    .queryParam("to", to)
+                    .queryParam("token", finnhubApiConfig.getApiKey())
+                    .toUriString();
+            
+            log.debug("Calling Finnhub API: {}", url);
+            
+            // Call Finnhub API
+            ResponseEntity<List<CompanyNewsDTO>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    null,
+                    new ParameterizedTypeReference<List<CompanyNewsDTO>>() {}
+            );
+            
+            List<CompanyNewsDTO> newsItems = response.getBody();
+            
+            if (newsItems == null || newsItems.isEmpty()) {
+                log.warn("No market news found in date range {} to {}", from, to);
+                return Collections.emptyList();
+            }
+            
+            log.info("Fetched {} market news items", newsItems.size());
+            
+            // Apply count limit if specified
+            if (count != null && count > 0 && count < newsItems.size()) {
+                return newsItems.subList(0, count);
+            }
+            
+            return newsItems;
+        } catch (HttpClientErrorException e) {
+            log.error("Error fetching market news: {} - {}", 
+                     e.getStatusCode(), e.getResponseBodyAsString(), e);
+            
+            if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                log.warn("Rate limit exceeded when calling Finnhub API");
+            }
+            
+            throw e;
+        } catch (Exception e) {
+            log.error("Error fetching market news: ", e);
+            throw e;
+        }
+    }
+
+    /**
+     * Fetch basic financial metrics for a specific stock symbol from Finnhub API
+     * @param symbol the stock symbol (e.g., AAPL)
+     * @return FinancialMetricsResult containing the status and data
+     */
+    @Transactional
+    public FinancialMetricsResult fetchAndSaveBasicFinancials(String symbol) {
+        log.info("Fetching basic financial metrics for symbol: {}", symbol);
+        
+        try {
+            // Check if we already have metrics for this symbol today
+            boolean alreadyExists = financialMetricsRepository.existsBySymbolAndCreatedAtDate(symbol, LocalDate.now());
+            if (alreadyExists) {
+                log.info("Financial metrics for symbol {} already exist for today, skipping", symbol);
+                return FinancialMetricsResult.skipped(symbol);
+            }
+            
+            // 먼저 회사 프로필 정보 가져오기 (marketCapitalization용)
+            CompanyProfileDTO profileDTO = fetchCompanyProfile(symbol);
+            
+            FinancialMetricsDTO metricsDTO = fetchBasicFinancialsFromFinnhub(symbol);
+            
+            if (metricsDTO == null || metricsDTO.getMetric() == null) {
+                log.warn("No financial metrics found for symbol: {}", symbol);
+                return FinancialMetricsResult.noData(symbol);
+            }
+            
+            FinancialMetrics financialMetrics = mapToFinancialMetricsEntity(symbol, metricsDTO);
+            
+            // marketCapitalization 설정
+            if (profileDTO != null && profileDTO.getMarketCapitalization() != null) {
+                financialMetrics.setMarketCapitalization(profileDTO.getMarketCapitalization());
+                log.debug("Added market capitalization: {} for symbol: {}", 
+                         profileDTO.getMarketCapitalization(), symbol);
+            }
+            
+            FinancialMetrics savedMetrics = financialMetricsRepository.save(financialMetrics);
+            return FinancialMetricsResult.success(savedMetrics);
+            
+        } catch (Exception e) {
+            log.error("Error fetching financial metrics for symbol {}: {}", symbol, e.getMessage());
+            return FinancialMetricsResult.error(symbol, e.getMessage());
+        }
+    }
+    
+    /**
+     * Fetch basic financial metrics for all stock symbols in the database
+     * @param batchSize the number of symbols to process in each batch
+     * @param delayMs the delay between API calls in milliseconds
+     * @return the number of symbols for which financial metrics were successfully fetched and saved
+     */
+    public int fetchAndSaveAllBasicFinancials(int batchSize, int delayMs) {
+        log.info("Starting to fetch basic financial metrics for all symbols with batchSize={}, delayMs={}", 
+                batchSize, delayMs);
+        
+        List<StockSymbol> allSymbols = stockSymbolRepository.findByProfileEmptyFalse();
+        log.info("Found {} symbols with valid company profiles", allSymbols.size());
+        
+        int totalProcessed = 0;
+        int totalSkipped = 0;
+        int totalBatches = (int) Math.ceil((double) allSymbols.size() / batchSize);
+        
+        for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+            int startIndex = batchIndex * batchSize;
+            int endIndex = Math.min(startIndex + batchSize, allSymbols.size());
+            List<StockSymbol> batch = allSymbols.subList(startIndex, endIndex);
+            
+            log.info("Processing batch {}/{} with {} symbols", 
+                    batchIndex + 1, totalBatches, batch.size());
+            
+            // 배치별로 처리하고 결과를 누적
+            BatchResult result = processBatchWithNewTransaction(batch, delayMs);
+            totalProcessed += result.getProcessedCount();
+            totalSkipped += result.getSkippedCount();
+            
+            log.info("Completed batch {}/{}, batch successful: {}, batch skipped: {}, total successful: {}, total skipped: {}", 
+                    batchIndex + 1, totalBatches, result.getProcessedCount(), result.getSkippedCount(), 
+                    totalProcessed, totalSkipped);
+        }
+        
+        log.info("Completed fetching financial metrics for all symbols. Total successful: {}/{}, Total skipped: {}", 
+                totalProcessed, allSymbols.size(), totalSkipped);
+        
+        return totalProcessed;
+    }
+    
+    /**
+     * 배치 처리 결과를 담는 내부 클래스
+     */
+    private static class BatchResult {
+        private final int processedCount;
+        private final int skippedCount;
+        
+        public BatchResult(int processedCount, int skippedCount) {
+            this.processedCount = processedCount;
+            this.skippedCount = skippedCount;
+        }
+        
+        public int getProcessedCount() {
+            return processedCount;
+        }
+        
+        public int getSkippedCount() {
+            return skippedCount;
+        }
+    }
+    
+    /**
+     * 새로운 트랜잭션에서 배치를 처리하는 메소드
+     * 각 배치마다 별도의 트랜잭션을 사용하여 처리 완료 시 데이터베이스에 즉시 커밋
+     * 
+     * @param batch 처리할 심볼 배치
+     * @param delayMs API 호출 사이의 지연 시간(밀리초)
+     * @return 처리 결과 (성공 및 건너뛴 개수)
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public BatchResult processBatchWithNewTransaction(List<StockSymbol> batch, int delayMs) {
+        int batchProcessed = 0;
+        int batchSkipped = 0;
+        
+        List<FinancialMetrics> metricsToSave = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+        
+        for (StockSymbol symbol : batch) {
+            try {
+                // Check if we already have metrics for this symbol today
+                boolean alreadyExists = financialMetricsRepository.existsBySymbolAndCreatedAtDate(symbol.getSymbol(), today);
+                if (alreadyExists) {
+                    log.info("Financial metrics for symbol {} already exist for today, skipping", symbol.getSymbol());
+                    batchSkipped++;
+                    continue;
+                }
+                
+                FinancialMetricsDTO metricsDTO = fetchBasicFinancialsFromFinnhub(symbol.getSymbol());
+                
+                if (metricsDTO != null && metricsDTO.getMetric() != null) {
+                    FinancialMetrics metrics = mapToFinancialMetricsEntity(symbol.getSymbol(), metricsDTO);
+                    
+                    // 회사 프로필에서 marketCapitalization 정보 가져오기
+                    CompanyProfileDTO profileDTO = fetchCompanyProfile(symbol.getSymbol());
+                    if (profileDTO != null && profileDTO.getMarketCapitalization() != null) {
+                        metrics.setMarketCapitalization(profileDTO.getMarketCapitalization());
+                        log.debug("Added market capitalization: {} for symbol: {}", 
+                                 profileDTO.getMarketCapitalization(), symbol.getSymbol());
+                    }
+                    
+                    metricsToSave.add(metrics);
+                    batchProcessed++;
+                    log.debug("Successfully fetched financial metrics for symbol: {}", symbol.getSymbol());
+                } else {
+                    batchSkipped++;
+                    log.warn("Skipped financial metrics for symbol (no data): {}", symbol.getSymbol());
+                }
+                
+                // Delay between API calls to respect rate limits
+                if (delayMs > 0 && batch.indexOf(symbol) < batch.size() - 1) {
+                    Thread.sleep(delayMs);
+                }
+                
+            } catch (Exception e) {
+                log.error("Error processing financial metrics for symbol {}: {}", 
+                        symbol.getSymbol(), e.getMessage());
+                batchSkipped++;
+                // Continue with the next symbol
+            }
+        }
+        
+        // 배치의 모든 데이터를 한번에 저장 (성능 향상)
+        if (!metricsToSave.isEmpty()) {
+            log.info("Saving batch of {} financial metrics to database", metricsToSave.size());
+            financialMetricsRepository.saveAll(metricsToSave);
+        }
+        
+        return new BatchResult(batchProcessed, batchSkipped);
+    }
+    
+    /**
+     * Fetch financial metrics from Finnhub API
+     * @param symbol the stock symbol (e.g., AAPL)
+     * @return FinancialMetricsDTO containing the response from Finnhub
+     */
+    private FinancialMetricsDTO fetchBasicFinancialsFromFinnhub(String symbol) {
+        String url = UriComponentsBuilder.newInstance()
+                .scheme("https")
+                .host("finnhub.io")
+                .path("/api/v1/stock/metric")
+                .queryParam("symbol", symbol)
+                .queryParam("metric", "all")
+                .queryParam("token", finnhubApiConfig.getApiKey())
+                .toUriString();
+        
+        try {
+            ResponseEntity<FinancialMetricsDTO> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    null,
+                    FinancialMetricsDTO.class
+            );
+            
+            if (response.getStatusCode() == HttpStatus.OK) {
+                log.debug("Successfully fetched financial metrics for symbol: {}", symbol);
+                return response.getBody();
+            } else {
+                log.warn("Received non-OK response when fetching financial metrics for symbol {}: {}", 
+                        symbol, response.getStatusCode());
+                return null;
+            }
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                log.warn("Rate limit exceeded when fetching financial metrics for symbol: {}", symbol);
+                throw new RuntimeException("Finnhub API rate limit exceeded. Please try again later.");
+            } else {
+                log.error("HTTP error fetching financial metrics for symbol {}: {}", symbol, e.getStatusCode());
+                return null; // Return null to skip this symbol instead of throwing exception
+            }
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            // Handle timeout and connection errors
+            log.warn("Timeout or connection error fetching financial metrics for symbol {}: {}", symbol, e.getMessage());
+            return null; // Return null to skip this symbol
+        } catch (Exception e) {
+            log.error("Error fetching financial metrics for symbol {}: {}", symbol, e.getMessage());
+            return null; // Return null to skip this symbol instead of throwing exception
+        }
+    }
+    
+    /**
+     * Map the FinancialMetricsDTO to a FinancialMetrics entity
+     * @param symbol the stock symbol
+     * @param metricsDTO the DTO from Finnhub API
+     * @return FinancialMetrics entity
+     */
+    private FinancialMetrics mapToFinancialMetricsEntity(String symbol, FinancialMetricsDTO metricsDTO) {
+        Map<String, Object> metrics = metricsDTO.getMetric();
+        
+        FinancialMetrics entity = FinancialMetrics.builder()
+                .symbol(symbol)
+                .build();
+        
+        // Trading Volume Metrics
+        if (metrics.containsKey("10DayAverageTradingVolume")) {
+            entity.setTenDayAverageTradingVolume(getDoubleValue(metrics, "10DayAverageTradingVolume"));
+        }
+        if (metrics.containsKey("3MonthAverageTradingVolume")) {
+            entity.setThreeMonthAverageTradingVolume(getDoubleValue(metrics, "3MonthAverageTradingVolume"));
+        }
+        
+        // Price Return Metrics
+        if (metrics.containsKey("13WeekPriceReturnDaily")) {
+            entity.setThirteenWeekPriceReturnDaily(getDoubleValue(metrics, "13WeekPriceReturnDaily"));
+        }
+        if (metrics.containsKey("26WeekPriceReturnDaily")) {
+            entity.setTwentySixWeekPriceReturnDaily(getDoubleValue(metrics, "26WeekPriceReturnDaily"));
+        }
+        if (metrics.containsKey("52WeekPriceReturnDaily")) {
+            entity.setFiftyTwoWeekPriceReturnDaily(getDoubleValue(metrics, "52WeekPriceReturnDaily"));
+        }
+        if (metrics.containsKey("5DayPriceReturnDaily")) {
+            entity.setFiveDayPriceReturnDaily(getDoubleValue(metrics, "5DayPriceReturnDaily"));
+        }
+        if (metrics.containsKey("yearToDatePriceReturnDaily")) {
+            entity.setYearToDatePriceReturnDaily(getDoubleValue(metrics, "yearToDatePriceReturnDaily"));
+        }
+        if (metrics.containsKey("monthToDatePriceReturnDaily")) {
+            entity.setMonthToDatePriceReturnDaily(getDoubleValue(metrics, "monthToDatePriceReturnDaily"));
+        }
+        
+        // Highs and Lows
+        if (metrics.containsKey("52WeekHigh")) {
+            entity.setFiftyTwoWeekHigh(getDoubleValue(metrics, "52WeekHigh"));
+        }
+        if (metrics.containsKey("52WeekHighDate")) {
+            entity.setFiftyTwoWeekHighDate((String) metrics.get("52WeekHighDate"));
+        }
+        if (metrics.containsKey("52WeekLow")) {
+            entity.setFiftyTwoWeekLow(getDoubleValue(metrics, "52WeekLow"));
+        }
+        if (metrics.containsKey("52WeekLowDate")) {
+            entity.setFiftyTwoWeekLowDate((String) metrics.get("52WeekLowDate"));
+        }
+        
+        // Beta and Volatility
+        if (metrics.containsKey("beta")) {
+            entity.setBeta(getDoubleValue(metrics, "beta"));
+        }
+        if (metrics.containsKey("3MonthADReturnStd")) {
+            entity.setThreeMonthADReturnStd(getDoubleValue(metrics, "3MonthADReturnStd"));
+        }
+        
+        // Valuation Ratios
+        if (metrics.containsKey("peTTM")) {
+            entity.setPriceToEarningsRatio(getDoubleValue(metrics, "peTTM"));
+        }
+        if (metrics.containsKey("pbQuarterly")) {
+            entity.setPriceToBookRatio(getDoubleValue(metrics, "pbQuarterly"));
+        }
+        if (metrics.containsKey("psTTM")) {
+            entity.setPriceToSalesRatio(getDoubleValue(metrics, "psTTM"));
+        }
+        if (metrics.containsKey("pcfShareTTM")) {
+            entity.setPriceToCashFlowRatio(getDoubleValue(metrics, "pcfShareTTM"));
+        }
+        
+        // Financial Performance Metrics
+        if (metrics.containsKey("roeTTM")) {
+            entity.setReturnOnEquity(getDoubleValue(metrics, "roeTTM"));
+        }
+        if (metrics.containsKey("roaTTM")) {
+            entity.setReturnOnAssets(getDoubleValue(metrics, "roaTTM"));
+        }
+        if (metrics.containsKey("roiTTM")) {
+            entity.setReturnOnInvestment(getDoubleValue(metrics, "roiTTM"));
+        }
+        if (metrics.containsKey("grossMarginTTM")) {
+            entity.setGrossMarginTTM(getDoubleValue(metrics, "grossMarginTTM"));
+        }
+        if (metrics.containsKey("operatingMarginTTM")) {
+            entity.setOperatingMarginTTM(getDoubleValue(metrics, "operatingMarginTTM"));
+        }
+        if (metrics.containsKey("netProfitMarginTTM")) {
+            entity.setNetProfitMarginTTM(getDoubleValue(metrics, "netProfitMarginTTM"));
+        }
+        
+        // Debt Metrics
+        if (metrics.containsKey("totalDebt/totalEquityQuarterly")) {
+            entity.setTotalDebtToEquityQuarterly(getDoubleValue(metrics, "totalDebt/totalEquityQuarterly"));
+        }
+        if (metrics.containsKey("longTermDebt/equityQuarterly")) {
+            entity.setLongTermDebtToEquityQuarterly(getDoubleValue(metrics, "longTermDebt/equityQuarterly"));
+        }
+        
+        // Dividend Metrics
+        if (metrics.containsKey("dividendPerShareAnnual")) {
+            entity.setDividendPerShareAnnual(getDoubleValue(metrics, "dividendPerShareAnnual"));
+        }
+        if (metrics.containsKey("dividendYieldIndicatedAnnual")) {
+            entity.setDividendYieldIndicatedAnnual(getDoubleValue(metrics, "dividendYieldIndicatedAnnual"));
+        }
+        if (metrics.containsKey("dividendGrowthRate5Y")) {
+            entity.setDividendGrowthRate5Y(getDoubleValue(metrics, "dividendGrowthRate5Y"));
+        }
+        
+        // Growth Metrics
+        if (metrics.containsKey("revenueGrowth3Y")) {
+            entity.setRevenueGrowth3Y(getDoubleValue(metrics, "revenueGrowth3Y"));
+        }
+        if (metrics.containsKey("revenueGrowth5Y")) {
+            entity.setRevenueGrowth5Y(getDoubleValue(metrics, "revenueGrowth5Y"));
+        }
+        if (metrics.containsKey("epsGrowth3Y")) {
+            entity.setEpsGrowth3Y(getDoubleValue(metrics, "epsGrowth3Y"));
+        }
+        if (metrics.containsKey("epsGrowth5Y")) {
+            entity.setEpsGrowth5Y(getDoubleValue(metrics, "epsGrowth5Y"));
+        }
+        
+        // Balance Sheet Metrics
+        if (metrics.containsKey("bookValuePerShareAnnual")) {
+            entity.setBookValuePerShareAnnual(getDoubleValue(metrics, "bookValuePerShareAnnual"));
+        }
+        if (metrics.containsKey("cashPerSharePerShareAnnual")) {
+            entity.setCashPerSharePerShareAnnual(getDoubleValue(metrics, "cashPerSharePerShareAnnual"));
+        }
+        if (metrics.containsKey("currentRatioAnnual")) {
+            entity.setCurrentRatioAnnual(getDoubleValue(metrics, "currentRatioAnnual"));
+        }
+        if (metrics.containsKey("quickRatioAnnual")) {
+            entity.setQuickRatioAnnual(getDoubleValue(metrics, "quickRatioAnnual"));
+        }
+        
+        return entity;
+    }
+    
+    /**
+     * Helper method to safely get a Double value from a Map
+     * @param map the map containing the values
+     * @param key the key to look up
+     * @return the Double value, or null if not found or not a number
+     */
+    private Double getDoubleValue(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        if (value == null) {
+            return null;
+        }
+        
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        
+        try {
+            return Double.parseDouble(value.toString());
+        } catch (NumberFormatException e) {
+            log.warn("Could not parse value for key {}: {}", key, value);
+            return null;
         }
     }
 } 
