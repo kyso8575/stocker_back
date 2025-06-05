@@ -78,13 +78,25 @@ public class StockSymbol {
     private String weburl;
     
     // 마지막 프로필 업데이트 시간
-    @Column(name = "profile_updated")
-    private java.time.LocalDateTime profileUpdated;
+    @Column(name = "last_profile_updated")
+    private java.time.LocalDateTime lastProfileUpdated;
     
-    // 빈 프로필 응답 여부
-    // null: 아직 시도하지 않음
-    // true: API 호출 시도했으나 데이터 없음 또는 오류 발생
-    // false: API 호출 성공 및 유효한 데이터 존재
-    @Column(name = "profile_empty")
-    private Boolean profileEmpty;
+    // 프로필 데이터가 비어있는지 여부
+    @Column(name = "profile_empty", nullable = false)
+    private boolean profileEmpty;
+    
+    // S&P 500 포함 여부
+    @Column(name = "is_sp_500", nullable = false)
+    @Builder.Default
+    private boolean isSp500 = false;
+    
+    @PrePersist
+    protected void onCreate() {
+        lastUpdated = java.time.LocalDateTime.now();
+        if (lastProfileUpdated == null) {
+            lastProfileUpdated = lastUpdated;
+        }
+        // 기본적으로 프로필은 비어있다고 설정
+        profileEmpty = true;
+    }
 } 

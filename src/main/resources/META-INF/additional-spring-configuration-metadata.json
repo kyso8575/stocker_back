@@ -1,13 +1,45 @@
 {
   "properties": [
     {
-      "name": "finnhub.api.key",
+      "name": "finnhub.api.key.1",
       "type": "java.lang.String",
-      "description": "API key for Finnhub service to fetch stock data and profiles."
+      "description": "First API key for Finnhub multi-key WebSocket service"
+    },
+    {
+      "name": "finnhub.api.key.2", 
+      "type": "java.lang.String",
+      "description": "Second API key for Finnhub multi-key WebSocket service"
+    },
+    {
+      "name": "finnhub.api.key.3",
+      "type": "java.lang.String", 
+      "description": "Third API key for Finnhub multi-key WebSocket service (optional)"
+    },
+    {
+      "name": "finnhub.websocket.max-symbols",
+      "type": "java.lang.Integer",
+      "description": "Maximum number of symbols per WebSocket connection",
+      "defaultValue": 50
+    },
+    {
+      "name": "finnhub.scheduled.websocket.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable scheduled WebSocket management based on US market hours",
+      "defaultValue": true
     }
   ],
-  "hints": [{
-    "name": "finnhub.api.key",
-    "values": []
-  }]
+  "hints": [
+    {
+      "name": "finnhub.api.key.1",
+      "values": []
+    },
+    {
+      "name": "finnhub.api.key.2", 
+      "values": []
+    },
+    {
+      "name": "finnhub.api.key.3",
+      "values": []
+    }
+  ]
 }
