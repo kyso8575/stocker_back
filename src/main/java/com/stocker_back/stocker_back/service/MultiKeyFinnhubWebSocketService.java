@@ -24,17 +24,19 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 멀티 API 키 기반 Finnhub WebSocket 연결 관리 서비스
  * 
  * 주요 기능:
- * - 여러 API 키를 사용한 WebSocket 연결 관리
+ * - 여러 API 키를 사용한 WebSocket 연결 관리 (지속 연결)
  * - S&P 500 종목 알파벳 순 고정 구독 (50개씩 분배)
- * - 실시간 거래 데이터 수신 및 데이터베이스 저장
+ * - 실시간 거래 데이터 수신 및 심볼별 10초 간격 저장
  * - 자동 재연결 및 에러 처리
  * 
  * 구독 방식: 고정된 알파벳 순서로 connection-1(A~), connection-2(M~)...
+ * 저장 방식: WebSocket 연결 유지하면서 심볼별로 10초 간격으로만 DB 저장
  */
 @Slf4j
 @Service
@@ -62,10 +64,17 @@ public class MultiKeyFinnhubWebSocketService {
     @Value("${finnhub.websocket.max-symbols:50}")
     private int maxSymbolsPerKey;
     
+    @Value("${finnhub.websocket.save-interval-seconds:10}")
+    private int saveIntervalSeconds;
+    
     // ===== State Management =====
     private final Map<String, WebSocketClient> webSocketClients = new HashMap<>();
     private final Map<String, Boolean> connectionStatus = new HashMap<>();
     private ScheduledExecutorService scheduler;
+    
+    // ===== Symbol-based Save Control (설정 가능한 간격 저장) =====
+    private final ConcurrentHashMap<String, LocalDateTime> lastSaveTimeBySymbol = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, FinnhubTradeDTO.TradeData> latestTradeBySymbol = new ConcurrentHashMap<>();
     
     // ===== Initialization =====
     
@@ -73,6 +82,7 @@ public class MultiKeyFinnhubWebSocketService {
     public void init() {
         this.scheduler = Executors.newScheduledThreadPool(4);
         log.info("🔧 MultiKeyFinnhubWebSocketService initialized with {} thread pool", 4);
+        log.info("⏰ Symbol-based save interval: {} seconds (WebSocket connection maintained)", saveIntervalSeconds);
     }
     
     // ===== Public API Methods =====
@@ -134,6 +144,68 @@ public class MultiKeyFinnhubWebSocketService {
      */
     public boolean isAnyConnected() {
         return connectionStatus.values().stream().anyMatch(Boolean::booleanValue);
+    }
+    
+    /**
+     * 심볼별 마지막 저장 시간 조회
+     */
+    public Map<String, LocalDateTime> getLastSaveTimeBySymbol() {
+        return new HashMap<>(lastSaveTimeBySymbol);
+    }
+    
+    /**
+     * 현재 메모리에 있는 심볼별 최신 거래 데이터 조회
+     */
+    public Map<String, FinnhubTradeDTO.TradeData> getLatestTradeBySymbol() {
+        return new HashMap<>(latestTradeBySymbol);
+    }
+    
+    /**
+     * 저장 간격 설정 조회 (초)
+     */
+    public int getSaveIntervalSeconds() {
+        return saveIntervalSeconds;
+    }
+    
+    /**
+     * 현재 추적 중인 심볼 수 조회
+     */
+    public int getTrackedSymbolCount() {
+        return latestTradeBySymbol.size();
+    }
+    
+    /**
+     * 심볼별 저장 상태 요약 조회
+     */
+    public Map<String, Object> getSaveStatusSummary() {
+        LocalDateTime now = LocalDateTime.now();
+        Map<String, Object> summary = new HashMap<>();
+        
+        int totalSymbols = latestTradeBySymbol.size();
+        int recentlySaved = 0;
+        int pendingSave = 0;
+        
+        for (Map.Entry<String, LocalDateTime> entry : lastSaveTimeBySymbol.entrySet()) {
+            String symbol = entry.getKey();
+            LocalDateTime lastSave = entry.getValue();
+            
+            if (latestTradeBySymbol.containsKey(symbol)) {
+                long secondsSinceLastSave = java.time.Duration.between(lastSave, now).getSeconds();
+                if (secondsSinceLastSave < saveIntervalSeconds) {
+                    recentlySaved++;
+                } else {
+                    pendingSave++;
+                }
+            }
+        }
+        
+        summary.put("totalSymbols", totalSymbols);
+        summary.put("recentlySaved", recentlySaved);
+        summary.put("pendingSave", pendingSave);
+        summary.put("saveIntervalSeconds", saveIntervalSeconds);
+        summary.put("timestamp", now);
+        
+        return summary;
     }
     
     // ===== Private Implementation Methods =====
@@ -204,6 +276,8 @@ public class MultiKeyFinnhubWebSocketService {
     
     /**
      * WebSocket 메시지 처리
+     * - 메시지는 실시간으로 계속 수신
+     * - 저장은 심볼별로 10초 간격으로만 수행
      */
     private void handleMessage(String connectionId, String message) {
         try {
@@ -225,7 +299,10 @@ public class MultiKeyFinnhubWebSocketService {
             FinnhubTradeDTO tradeDTO = objectMapper.readValue(message, FinnhubTradeDTO.class);
             
             if ("trade".equals(tradeDTO.getType()) && tradeDTO.getData() != null) {
-                CompletableFuture.runAsync(() -> saveTrades(tradeDTO.getData(), connectionId));
+                // 각 거래 데이터를 심볼별로 처리 (10초 간격 저장 체크)
+                for (FinnhubTradeDTO.TradeData tradeData : tradeDTO.getData()) {
+                    processTradeDataWithInterval(tradeData, connectionId);
+                }
             }
             
         } catch (Exception e) {
@@ -234,22 +311,55 @@ public class MultiKeyFinnhubWebSocketService {
     }
     
     /**
-     * 거래 데이터 저장
+     * 심볼별 거래 데이터 처리 및 10초 간격 저장 체크
      */
-    private void saveTrades(List<FinnhubTradeDTO.TradeData> tradeDataList, String connectionId) {
-        try {
-            List<Trade> trades = tradeDataList.stream()
-                    .map(this::convertToTrade)
-                    .filter(Objects::nonNull)
-                    .toList();
+    private void processTradeDataWithInterval(FinnhubTradeDTO.TradeData tradeData, String connectionId) {
+        String symbol = tradeData.getSymbol();
+        LocalDateTime now = LocalDateTime.now();
+        
+        // 1. 최신 거래 데이터는 항상 메모리에 업데이트 (실시간 조회용)
+        latestTradeBySymbol.put(symbol, tradeData);
+        
+        // 2. 마지막 저장 시간 확인
+        LocalDateTime lastSaveTime = lastSaveTimeBySymbol.get(symbol);
+        
+        // 3. 10초가 지났거나 첫 번째 데이터인 경우에만 DB 저장
+        if (shouldSaveNow(lastSaveTime, now)) {
+            CompletableFuture.runAsync(() -> saveTradeToDatabase(tradeData, connectionId, symbol, now));
+            lastSaveTimeBySymbol.put(symbol, now);
             
-            if (!trades.isEmpty()) {
-                tradeRepository.saveAll(trades);
-                log.debug("💾 Saved {} trades from [{}]", trades.size(), connectionId);
+            log.debug("💾 [{}] Saving trade for symbol: {} (price: {}, interval: {}s)", 
+                    connectionId, symbol, tradeData.getPrice(), saveIntervalSeconds);
+        } else {
+            // 저장하지 않는 경우 (메모리에만 유지)
+            long secondsSinceLastSave = java.time.Duration.between(lastSaveTime, now).getSeconds();
+            log.trace("⏭️ [{}] Skipping save for symbol: {} (last saved: {}s ago, need: {}s)", 
+                    connectionId, symbol, secondsSinceLastSave, saveIntervalSeconds);
+        }
+    }
+    
+    /**
+     * 저장 시점 판단
+     */
+    private boolean shouldSaveNow(LocalDateTime lastSaveTime, LocalDateTime now) {
+        return lastSaveTime == null || now.isAfter(lastSaveTime.plusSeconds(saveIntervalSeconds));
+    }
+    
+    /**
+     * 데이터베이스에 거래 데이터 저장
+     */
+    private void saveTradeToDatabase(FinnhubTradeDTO.TradeData tradeData, String connectionId, String symbol, LocalDateTime saveTime) {
+        try {
+            Trade trade = convertToTrade(tradeData);
+            
+            if (trade != null) {
+                tradeRepository.save(trade);
+                log.debug("✅ [{}] Successfully saved trade: {} @ {} (saved at: {})", 
+                        connectionId, symbol, trade.getPrice(), saveTime.toString().substring(11, 19));
             }
             
         } catch (Exception e) {
-            log.error("❌ Failed to save trades from [{}]", connectionId, e);
+            log.error("❌ [{}] Failed to save trade for symbol: {} - {}", connectionId, symbol, e.getMessage());
         }
     }
     

@@ -6,10 +6,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 미국 주식 시장 시간 기반 WebSocket 연결 관리 서비스
@@ -17,7 +22,7 @@ import java.time.ZonedDateTime;
  * 주요 기능:
  * - 매분마다 미국 시장 시간 체크 
  * - 시장 개장시 자동 WebSocket 연결
- * - 시장 시간 중 10초마다 연결 상태 모니터링
+ * - 설정 가능한 간격으로 연결 상태 모니터링
  * - 시장 마감시 자동 WebSocket 해제
  * 
  * 시장 시간: 9:30 AM - 4:00 PM ET (월-금)
@@ -32,8 +37,29 @@ public class ScheduledWebSocketService {
     @Value("${finnhub.scheduled.websocket.enabled:true}")
     private boolean scheduledWebSocketEnabled;
     
+    @Value("${finnhub.scheduled.websocket.monitor-interval-ms:10000}")
+    private long monitorIntervalMs;
+    
     private volatile boolean isMarketHours = false;
     private volatile boolean isConnected = false;
+    private ScheduledExecutorService monitoringScheduler;
+    
+    @PostConstruct
+    public void initializeMonitoring() {
+        this.monitoringScheduler = Executors.newScheduledThreadPool(1);
+        
+        log.info("🔧 ScheduledWebSocketService initialized");
+        log.info("⏰ Market hours check: every 60 seconds");
+        log.info("⏰ Connection monitoring: every {} ms", monitorIntervalMs);
+        
+        // 설정 가능한 간격으로 모니터링 시작
+        monitoringScheduler.scheduleAtFixedRate(
+            this::monitorWebSocketConnection, 
+            0, 
+            monitorIntervalMs, 
+            TimeUnit.MILLISECONDS
+        );
+    }
     
     /**
      * 미국 주식 시장 시간 확인 (매분마다 체크)
@@ -60,9 +86,8 @@ public class ScheduledWebSocketService {
     }
     
     /**
-     * 10초마다 WebSocket 연결 상태 확인 및 재연결 (시장 시간에만)
+     * 설정 가능한 간격으로 WebSocket 연결 상태 확인 및 재연결 (시장 시간에만)
      */
-    @Scheduled(fixedRate = 10000) // 10초마다 실행
     public void monitorWebSocketConnection() {
         if (!scheduledWebSocketEnabled || !isMarketHours) {
             return;
@@ -78,9 +103,10 @@ public class ScheduledWebSocketService {
             isConnected = true;
         }
         
-        // 10초마다 연결 상태 로깅 (디버그용)
+        // 설정된 간격마다 연결 상태 로깅 (디버그용)
         if (actuallyConnected) {
-            log.debug("📡 WebSocket monitoring: Connected and active (market hours: {})", isMarketHours);
+            log.debug("📡 WebSocket monitoring: Connected and active (interval: {}ms, market hours: {})", 
+                    monitorIntervalMs, isMarketHours);
         } else {
             log.warn("❌ WebSocket monitoring: Not connected during market hours");
         }
@@ -193,6 +219,13 @@ public class ScheduledWebSocketService {
     }
     
     /**
+     * 현재 모니터링 간격 조회 (밀리초)
+     */
+    public long getMonitorIntervalMs() {
+        return monitorIntervalMs;
+    }
+    
+    /**
      * 다음 시장 개장/마감 시간 정보
      */
     public String getNextMarketEvent() {
@@ -217,5 +250,12 @@ public class ScheduledWebSocketService {
             }
             return "Market opens at: " + marketOpen.toString();
         }
+    }
+
+    @PreDestroy
+    public void cleanup() {
+        // 서비스 종료 시 스케줄러를 정리하는 로직을 구현해야 합니다.
+        log.info("🧹 Cleaning up ScheduledWebSocketService");
+        monitoringScheduler.shutdownNow();
     }
 } 
