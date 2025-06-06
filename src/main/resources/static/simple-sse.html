@@ -164,21 +164,23 @@
         
         <div class="controls">
             <div class="control-panel">
-                <h3>🎯 단일 심볼</h3>
-                <input type="text" id="singleSymbol" placeholder="AAPL" value="AAPL">
-                <input type="number" id="singleInterval" placeholder="간격(초)" value="5" min="1" max="60">
-                <button id="connectSingle">연결</button>
-                <button id="disconnectSingle" disabled>해제</button>
-                <div id="singleStatus" class="status disconnected">연결되지 않음</div>
+                <h3>📊 거래 데이터 스트리밍</h3>
+                <input type="text" id="symbols" placeholder="AAPL 또는 AAPL,MSFT,GOOGL" value="AAPL">
+                <input type="number" id="interval" placeholder="간격(초)" value="5" min="1" max="60">
+                <button id="connectBtn">연결</button>
+                <button id="disconnectBtn" disabled>해제</button>
+                <div id="status" class="status disconnected">연결되지 않음</div>
             </div>
             
             <div class="control-panel">
-                <h3>📈 다중 심볼</h3>
-                <input type="text" id="multiSymbols" placeholder="AAPL,MSFT,GOOGL" value="AAPL,MSFT,GOOGL">
-                <input type="number" id="multiInterval" placeholder="간격(초)" value="5" min="1" max="60">
-                <button id="connectMulti">연결</button>
-                <button id="disconnectMulti" disabled>해제</button>
-                <div id="multiStatus" class="status disconnected">연결되지 않음</div>
+                <h3>📈 빠른 연결</h3>
+                <button onclick="quickConnect('AAPL')">AAPL</button>
+                <button onclick="quickConnect('MSFT')">MSFT</button>
+                <button onclick="quickConnect('GOOGL')">GOOGL</button>
+                <button onclick="quickConnect('AAPL,MSFT,GOOGL')">AAPL+MSFT+GOOGL</button>
+                <div style="margin-top: 10px; font-size: 12px; color: #6b7280;">
+                    빠른 연결 버튼으로 테스트해보세요
+                </div>
             </div>
         </div>
         
@@ -197,26 +199,18 @@
     </div>
 
     <script>
-        let singleEventSource = null;
-        let multiEventSource = null;
+        let eventSource = null;
         
         // 서버 설정 - 8080 포트로 명시적 설정
         const SERVER_BASE_URL = 'http://localhost:8080';
         
         // DOM 요소들
         const elements = {
-            singleSymbol: document.getElementById('singleSymbol'),
-            singleInterval: document.getElementById('singleInterval'),
-            connectSingle: document.getElementById('connectSingle'),
-            disconnectSingle: document.getElementById('disconnectSingle'),
-            singleStatus: document.getElementById('singleStatus'),
-            
-            multiSymbols: document.getElementById('multiSymbols'),
-            multiInterval: document.getElementById('multiInterval'),
-            connectMulti: document.getElementById('connectMulti'),
-            disconnectMulti: document.getElementById('disconnectMulti'),
-            multiStatus: document.getElementById('multiStatus'),
-            
+            symbols: document.getElementById('symbols'),
+            interval: document.getElementById('interval'),
+            connectBtn: document.getElementById('connectBtn'),
+            disconnectBtn: document.getElementById('disconnectBtn'),
+            status: document.getElementById('status'),
             dataDisplay: document.getElementById('dataDisplay'),
             serverStatus: document.getElementById('serverStatus')
         };
@@ -226,41 +220,29 @@
             checkServerStatus();
         });
         
-        // 단일 심볼 연결
-        elements.connectSingle.addEventListener('click', function() {
-            const symbol = elements.singleSymbol.value.trim().toUpperCase();
-            const interval = elements.singleInterval.value;
+        // 연결 버튼 클릭
+        elements.connectBtn.addEventListener('click', function() {
+            const symbols = elements.symbols.value.trim();
+            const interval = elements.interval.value;
             
-            if (!symbol) {
+            if (!symbols) {
                 alert('심볼을 입력해주세요');
                 return;
             }
             
-            connectSingle(symbol, interval);
+            connect(symbols, interval);
         });
         
-        // 단일 심볼 해제
-        elements.disconnectSingle.addEventListener('click', function() {
-            disconnectSingle();
+        // 해제 버튼 클릭
+        elements.disconnectBtn.addEventListener('click', function() {
+            disconnect();
         });
         
-        // 다중 심볼 연결
-        elements.connectMulti.addEventListener('click', function() {
-            const symbols = elements.multiSymbols.value.trim();
-            const interval = elements.multiInterval.value;
-            
-            if (!symbols) {
-                alert('심볼들을 입력해주세요');
-                return;
-            }
-            
-            connectMulti(symbols, interval);
-        });
-        
-        // 다중 심볼 해제
-        elements.disconnectMulti.addEventListener('click', function() {
-            disconnectMulti();
-        });
+        // 빠른 연결 함수
+        function quickConnect(symbols) {
+            elements.symbols.value = symbols;
+            connect(symbols, elements.interval.value);
+        }
         
         // 서버 상태 확인
         async function checkServerStatus() {
@@ -280,122 +262,80 @@
             }
         }
         
-        // 단일 심볼 연결 함수
-        function connectSingle(symbol, interval) {
-            if (singleEventSource) {
-                singleEventSource.close();
+        // 통합된 연결 함수
+        function connect(symbols, interval) {
+            if (eventSource) {
+                eventSource.close();
             }
             
-            updateStatus('single', 'connecting', `${symbol} 연결 중...`);
-            
-            const url = `${SERVER_BASE_URL}/api/sse/trades/${symbol}?interval=${interval}`;
-            addDebugMessage(`연결 시도: ${url}`);
-            
-            singleEventSource = new EventSource(url);
-            
-            singleEventSource.addEventListener('trade_data', function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    addDebugMessage(`단일 데이터 수신: ${JSON.stringify(data)}`);
-                    displayTradeData(data, 'single');
-                } catch (error) {
-                    addMessage(`❌ 데이터 파싱 에러: ${error.message}`);
-                }
-            });
-            
-            singleEventSource.onopen = function() {
-                updateStatus('single', 'connected', `${symbol} 연결됨 (${interval}초)`);
-                elements.connectSingle.disabled = true;
-                elements.disconnectSingle.disabled = false;
-                addMessage(`🟢 ${symbol} 단일 심볼 연결 성공`);
-            };
-            
-            singleEventSource.onerror = function(event) {
-                console.error('SSE Error:', event);
-                updateStatus('single', 'disconnected', '연결 오류');
-                elements.connectSingle.disabled = false;
-                elements.disconnectSingle.disabled = true;
-                addMessage(`❌ ${symbol} 연결 실패 - 서버가 8080 포트에서 실행 중인지 확인하세요`);
-                
-                // 자동 재연결 시도
-                setTimeout(() => {
-                    if (singleEventSource && singleEventSource.readyState === EventSource.CLOSED) {
-                        addMessage(`🔄 ${symbol} 자동 재연결 시도...`);
-                        connectSingle(symbol, interval);
-                    }
-                }, 5000);
-            };
-        }
-        
-        // 다중 심볼 연결 함수
-        function connectMulti(symbols, interval) {
-            if (multiEventSource) {
-                multiEventSource.close();
-            }
-            
-            updateStatus('multi', 'connecting', '다중 심볼 연결 중...');
+            updateStatus('connecting', `${symbols} 연결 중...`);
             
             const url = `${SERVER_BASE_URL}/api/sse/trades?symbols=${encodeURIComponent(symbols)}&interval=${interval}`;
-            addDebugMessage(`다중 연결 시도: ${url}`);
+            addDebugMessage(`연결 시도: ${url}`);
             
-            multiEventSource = new EventSource(url);
+            eventSource = new EventSource(url);
             
-            multiEventSource.addEventListener('trades_data', function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    addDebugMessage(`다중 데이터 수신: ${JSON.stringify(data)}`);
-                    displayMultiTradeData(data);
-                } catch (error) {
-                    addMessage(`❌ 다중 데이터 파싱 에러: ${error.message}`);
-                }
-            });
+            // 단일 심볼인지 다중 심볼인지 확인
+            const symbolList = symbols.split(',').map(s => s.trim());
+            const isSingle = symbolList.length === 1;
             
-            multiEventSource.onopen = function() {
-                updateStatus('multi', 'connected', `다중 심볼 연결됨 (${interval}초)`);
-                elements.connectMulti.disabled = true;
-                elements.disconnectMulti.disabled = false;
-                addMessage(`🟢 다중 심볼 연결 성공: ${symbols}`);
+            // 적절한 이벤트 리스너 등록
+            if (isSingle) {
+                eventSource.addEventListener('trade_data', function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        addDebugMessage(`단일 데이터 수신: ${JSON.stringify(data)}`);
+                        displayTradeData(data, 'single');
+                    } catch (error) {
+                        addMessage(`❌ 데이터 파싱 에러: ${error.message}`);
+                    }
+                });
+            } else {
+                eventSource.addEventListener('trades_data', function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        addDebugMessage(`다중 데이터 수신: ${JSON.stringify(data)}`);
+                        displayMultiTradeData(data);
+                    } catch (error) {
+                        addMessage(`❌ 다중 데이터 파싱 에러: ${error.message}`);
+                    }
+                });
+            }
+            
+            eventSource.onopen = function() {
+                updateStatus('connected', `${symbols} 연결됨 (${interval}초)`);
+                elements.connectBtn.disabled = true;
+                elements.disconnectBtn.disabled = false;
+                addMessage(`🟢 ${symbols} 연결 성공 (${isSingle ? '단일' : '다중'} 모드)`);
             };
             
-            multiEventSource.onerror = function(event) {
-                console.error('Multi SSE Error:', event);
-                updateStatus('multi', 'disconnected', '연결 오류');
-                elements.connectMulti.disabled = false;
-                elements.disconnectMulti.disabled = true;
-                addMessage(`❌ 다중 심볼 연결 실패 - 서버가 8080 포트에서 실행 중인지 확인하세요`);
+            eventSource.onerror = function(event) {
+                console.error('SSE Error:', event);
+                updateStatus('disconnected', '연결 오류');
+                elements.connectBtn.disabled = false;
+                elements.disconnectBtn.disabled = true;
+                addMessage(`❌ ${symbols} 연결 실패 - 서버가 8080 포트에서 실행 중인지 확인하세요`);
                 
                 // 자동 재연결 시도
                 setTimeout(() => {
-                    if (multiEventSource && multiEventSource.readyState === EventSource.CLOSED) {
-                        addMessage(`🔄 다중 심볼 자동 재연결 시도...`);
-                        connectMulti(symbols, interval);
+                    if (eventSource && eventSource.readyState === EventSource.CLOSED) {
+                        addMessage(`🔄 ${symbols} 자동 재연결 시도...`);
+                        connect(symbols, interval);
                     }
                 }, 5000);
             };
         }
         
-        // 단일 심볼 해제
-        function disconnectSingle() {
-            if (singleEventSource) {
-                singleEventSource.close();
-                singleEventSource = null;
+        // 연결 해제
+        function disconnect() {
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
             }
-            updateStatus('single', 'disconnected', '연결 해제됨');
-            elements.connectSingle.disabled = false;
-            elements.disconnectSingle.disabled = true;
-            addMessage('🔌 단일 심볼 연결 해제');
-        }
-        
-        // 다중 심볼 해제
-        function disconnectMulti() {
-            if (multiEventSource) {
-                multiEventSource.close();
-                multiEventSource = null;
-            }
-            updateStatus('multi', 'disconnected', '연결 해제됨');
-            elements.connectMulti.disabled = false;
-            elements.disconnectMulti.disabled = true;
-            addMessage('🔌 다중 심볼 연결 해제');
+            updateStatus('disconnected', '연결 해제됨');
+            elements.connectBtn.disabled = false;
+            elements.disconnectBtn.disabled = true;
+            addMessage('🔌 연결 해제');
         }
         
         // 단일 거래 데이터 표시
@@ -448,10 +388,9 @@
         }
         
         // 상태 업데이트
-        function updateStatus(type, status, message) {
-            const statusElement = type === 'single' ? elements.singleStatus : elements.multiStatus;
-            statusElement.className = `status ${status}`;
-            statusElement.textContent = message;
+        function updateStatus(status, message) {
+            elements.status.className = `status ${status}`;
+            elements.status.textContent = message;
         }
         
         // 메시지 추가
@@ -480,7 +419,7 @@
         // API 테스트
         async function testAPI() {
             try {
-                const symbol = elements.singleSymbol.value.trim() || 'AAPL';
+                const symbol = elements.symbols.value.trim() || 'AAPL';
                 const url = `${SERVER_BASE_URL}/api/sse/trades/${symbol}/latest`;
                 addDebugMessage(`API 테스트 요청: ${url}`);
                 
@@ -500,8 +439,7 @@
         
         // 페이지 언로드 시 연결 해제
         window.addEventListener('beforeunload', function() {
-            disconnectSingle();
-            disconnectMulti();
+            disconnect();
         });
         
         // 키보드 단축키
@@ -510,11 +448,7 @@
                 switch(event.key) {
                     case '1':
                         event.preventDefault();
-                        elements.connectSingle.click();
-                        break;
-                    case '2':
-                        event.preventDefault();
-                        elements.connectMulti.click();
+                        elements.connectBtn.click();
                         break;
                     case 'c':
                         if (event.shiftKey) {

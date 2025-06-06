@@ -36,98 +36,67 @@ public class SimpleSSEController {
     private final Map<String, SseEmitter> activeConnections = new ConcurrentHashMap<>();
     
     /**
-     * 특정 심볼의 최신 거래 데이터를 SSE로 스트리밍
+     * 통합된 거래 데이터 SSE 스트리밍
      * 
-     * @param symbol 심볼 (예: AAPL)
-     * @param interval 업데이트 간격 (초, 기본: 5초)
-     */
-    @GetMapping(value = "/trades/{symbol}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamLatestTrade(
-            @PathVariable String symbol,
-            @RequestParam(defaultValue = "5") int interval) {
-        
-        String connectionId = symbol.toUpperCase() + "_" + System.currentTimeMillis();
-        SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
-        
-        activeConnections.put(connectionId, emitter);
-        
-        log.info("📡 새로운 SSE 연결: {} ({}초 간격)", symbol.toUpperCase(), interval);
-        
-        // 연결 해제 시 정리
-        emitter.onCompletion(() -> {
-            activeConnections.remove(connectionId);
-            log.info("✅ SSE 연결 완료: {}", symbol.toUpperCase());
-        });
-        
-        emitter.onTimeout(() -> {
-            activeConnections.remove(connectionId);
-            log.info("⏰ SSE 연결 타임아웃: {}", symbol.toUpperCase());
-        });
-        
-        emitter.onError(throwable -> {
-            activeConnections.remove(connectionId);
-            log.error("❌ SSE 연결 에러: {}", symbol.toUpperCase(), throwable);
-        });
-        
-        // 즉시 첫 번째 데이터 전송
-        sendLatestTradeData(emitter, symbol.toUpperCase(), true);
-        
-        // 주기적으로 데이터 전송
-        scheduler.scheduleAtFixedRate(() -> {
-            if (activeConnections.containsKey(connectionId)) {
-                sendLatestTradeData(emitter, symbol.toUpperCase(), false);
-            }
-        }, interval, interval, TimeUnit.SECONDS);
-        
-        return emitter;
-    }
-    
-    /**
-     * 여러 심볼의 최신 거래 데이터를 한번에 스트리밍
-     * 
-     * @param symbols 쉼표로 구분된 심볼들 (예: AAPL,MSFT,GOOGL)
+     * @param symbols 심볼들 (단일: "AAPL" 또는 다중: "AAPL,MSFT,GOOGL")
      * @param interval 업데이트 간격 (초, 기본: 5초)
      */
     @GetMapping(value = "/trades", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamMultipleLatestTrades(
+    public SseEmitter streamTrades(
             @RequestParam String symbols,
             @RequestParam(defaultValue = "5") int interval) {
         
-        String connectionId = "MULTI_" + System.currentTimeMillis();
-        SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
-        
+        // 심볼 파싱
         List<String> symbolList = Arrays.stream(symbols.split(","))
                 .map(String::trim)
                 .map(String::toUpperCase)
+                .filter(s -> !s.isEmpty())
                 .toList();
+        
+        if (symbolList.isEmpty()) {
+            throw new IllegalArgumentException("최소 하나의 심볼이 필요합니다");
+        }
+        
+        String connectionId = String.join(",", symbolList) + "_" + System.currentTimeMillis();
+        SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
         
         activeConnections.put(connectionId, emitter);
         
-        log.info("📡 새로운 다중 SSE 연결: {} ({}초 간격)", symbolList, interval);
+        boolean isSingle = symbolList.size() == 1;
+        log.info("📡 새로운 SSE 연결: {} ({}초 간격, {} 모드)", 
+                symbolList, interval, isSingle ? "단일" : "다중");
         
         // 연결 해제 시 정리
         emitter.onCompletion(() -> {
             activeConnections.remove(connectionId);
-            log.info("✅ 다중 SSE 연결 완료: {}", symbolList);
+            log.info("✅ SSE 연결 완료: {}", symbolList);
         });
         
         emitter.onTimeout(() -> {
             activeConnections.remove(connectionId);
-            log.info("⏰ 다중 SSE 연결 타임아웃: {}", symbolList);
+            log.info("⏰ SSE 연결 타임아웃: {}", symbolList);
         });
         
         emitter.onError(throwable -> {
             activeConnections.remove(connectionId);
-            log.error("❌ 다중 SSE 연결 에러: {}", symbolList, throwable);
+            log.error("❌ SSE 연결 에러: {}", symbolList, throwable);
         });
         
         // 즉시 첫 번째 데이터 전송
-        sendMultipleLatestTradeData(emitter, symbolList, true);
+        if (isSingle) {
+            sendLatestTradeData(emitter, symbolList.get(0), true);
+        } else {
+            sendMultipleLatestTradeData(emitter, symbolList, true);
+        }
         
         // 주기적으로 데이터 전송
         scheduler.scheduleAtFixedRate(() -> {
             if (activeConnections.containsKey(connectionId)) {
-                sendMultipleLatestTradeData(emitter, symbolList, false);
+                if (isSingle) {
+                    sendLatestTradeData(emitter, symbolList.get(0), false);
+                } else {
+                    sendMultipleLatestTradeData(emitter, symbolList, false);
+                }
             }
         }, interval, interval, TimeUnit.SECONDS);
         
