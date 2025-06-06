@@ -3,11 +3,120 @@
     {
       "name": "finnhub.api.key",
       "type": "java.lang.String",
-      "description": "API key for Finnhub service to fetch stock data and profiles."
+      "description": "Single Finnhub API key for backward compatibility (use finnhub.api.key.1 instead)"
+    },
+    {
+      "name": "finnhub.api.key.1",
+      "type": "java.lang.String",
+      "description": "First API key for Finnhub multi-key WebSocket service"
+    },
+    {
+      "name": "finnhub.api.key.2", 
+      "type": "java.lang.String",
+      "description": "Second API key for Finnhub multi-key WebSocket service"
+    },
+    {
+      "name": "finnhub.api.key.3",
+      "type": "java.lang.String", 
+      "description": "Third API key for Finnhub multi-key WebSocket service (optional)"
+    },
+    {
+      "name": "finnhub.websocket.url",
+      "type": "java.lang.String",
+      "description": "Finnhub WebSocket URL for real-time data streaming",
+      "defaultValue": "wss://ws.finnhub.io"
+    },
+    {
+      "name": "finnhub.websocket.auto-connect",
+      "type": "java.lang.Boolean",
+      "description": "Whether to automatically connect to WebSocket on startup",
+      "defaultValue": false
+    },
+    {
+      "name": "finnhub.websocket.reconnect-delay",
+      "type": "java.lang.Long",
+      "description": "Delay in milliseconds before attempting to reconnect after connection loss",
+      "defaultValue": 10000
+    },
+    {
+      "name": "finnhub.websocket.max-symbols",
+      "type": "java.lang.Integer",
+      "description": "Maximum number of symbols per WebSocket connection",
+      "defaultValue": 50
+    },
+    {
+      "name": "finnhub.websocket.save-interval-seconds",
+      "type": "java.lang.Integer",
+      "description": "Interval in seconds between saving trade data for each symbol to database",
+      "defaultValue": 10
+    },
+    {
+      "name": "finnhub.scheduled.websocket.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Enable scheduled WebSocket management based on US market hours",
+      "defaultValue": true
+    },
+    {
+      "name": "finnhub.scheduled.websocket.monitor-interval-ms",
+      "type": "java.lang.Long",
+      "description": "Interval in milliseconds for monitoring WebSocket connection status during market hours",
+      "defaultValue": 10000
     }
   ],
-  "hints": [{
-    "name": "finnhub.api.key",
-    "values": []
-  }]
+  "hints": [
+    {
+      "name": "finnhub.api.key",
+      "values": []
+    },
+    {
+      "name": "finnhub.api.key.1",
+      "values": []
+    },
+    {
+      "name": "finnhub.api.key.2", 
+      "values": []
+    },
+    {
+      "name": "finnhub.api.key.3",
+      "values": []
+    },
+    {
+      "name": "finnhub.websocket.save-interval-seconds",
+      "values": [
+        {
+          "value": 5,
+          "description": "Very frequent saving (high I/O load)"
+        },
+        {
+          "value": 10,
+          "description": "Default recommended interval"
+        },
+        {
+          "value": 30,
+          "description": "Less frequent saving (lower I/O load)"
+        },
+        {
+          "value": 60,
+          "description": "Minimal saving frequency"
+        }
+      ]
+    },
+    {
+      "name": "finnhub.scheduled.websocket.monitor-interval-ms",
+      "values": [
+        {
+          "value": 5000,
+          "description": "Frequent monitoring (every 5 seconds)"
+        },
+        {
+          "value": 10000,
+          "description": "Default monitoring interval"
+        },
+        {
+          "value": 30000,
+          "description": "Less frequent monitoring (every 30 seconds)"
+        }
+      ]
+    }
+  ]
 }

@@ -4,11 +4,11 @@
 For further reference, please consider the following sections:
 
 * [Official Gradle documentation](https://docs.gradle.org)
-* [Spring Boot Gradle Plugin Reference Guide](https://docs.spring.io/spring-boot/3.4.5/gradle-plugin)
-* [Create an OCI image](https://docs.spring.io/spring-boot/3.4.5/gradle-plugin/packaging-oci-image.html)
-* [Spring Boot DevTools](https://docs.spring.io/spring-boot/3.4.5/reference/using/devtools.html)
-* [Thymeleaf](https://docs.spring.io/spring-boot/3.4.5/reference/web/servlet.html#web.servlet.spring-mvc.template-engines)
-* [Spring Web](https://docs.spring.io/spring-boot/3.4.5/reference/web/servlet.html)
+* [Spring Boot Gradle Plugin Reference Guide](https://docs.spring.io/spring-boot/3.2.4/gradle-plugin)
+* [Create an OCI image](https://docs.spring.io/spring-boot/3.2.4/gradle-plugin/packaging-oci-image.html)
+* [Spring Boot DevTools](https://docs.spring.io/spring-boot/3.2.4/reference/using/devtools.html)
+* [Thymeleaf](https://docs.spring.io/spring-boot/3.2.4/reference/web/servlet.html#web.servlet.spring-mvc.template-engines)
+* [Spring Web](https://docs.spring.io/spring-boot/3.2.4/reference/web/servlet.html)
 
 ### Guides
 The following guides illustrate how to use some features concretely:
