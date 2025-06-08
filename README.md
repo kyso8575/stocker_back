@@ -43,9 +43,9 @@ S&P 500 주식의 실시간 거래 데이터를 수집하고 RESTful API로 제�
 - **배치 작업 최적화**: delayMs 기본값 500ms → 0ms (API 클라이언트에서 처리)
 
 ### 🔧 새로운 스케줄러 관리 API
-- **통합 상태 모니터링**: Financial Metrics + WebSocket 스케줄러 통합 관리
-- **수동 실행**: 스케줄 시간 외에도 수동으로 데이터 수집 가능
-- **실시간 상태 확인**: Pre-market, Market Hours, Data Saving 상태 실시간 조회
+- **통합 상태 모니터링**: Financial Metrics + Monthly Data + WebSocket 스케줄러 통합 관리
+- **실시간 상태 확인**: Pre-market, Market Hours, Data Saving, Monthly Collection 상태 실시간 조회
+- **3개 스케줄러 통합**: 일일 재무지표, 월간 데이터, WebSocket 관리를 하나의 API로 모니터링
 
 ## 🏗️ 시스템 아키텍처
 
@@ -155,6 +155,16 @@ finnhub.api.key.1=your_finnhub_api_key
 - 소요시간: 약 8.4분 (60 requests/minute)
 - 배치 크기: 20개씩 처리
 - 에러 처리: Rate limit 재시도 로직 포함
+```
+
+### 📆 Monthly Data Collection (NEW!)
+```
+🗓️ 매월 1일 & 15일 8:00 AM ET: S&P 500 목록 & 회사 프로필 자동 수집
+- S&P 500 목록 업데이트 (웹 스크래핑)
+- S&P 500 회사 프로필 수집 (503개 종목)
+- 소요시간: 약 10-15분 (목록 업데이트 + 프로필 수집)
+- 배치 크기: 20개씩 처리
+- Rate Limit: 60 requests/minute 자동 적용
 ```
 
 ### 📡 WebSocket Lifecycle Management
@@ -328,9 +338,11 @@ curl -X POST "http://localhost:8080/api/stocks/trades/websocket/connect"
   "health": {
     "status": "healthy",
     "financialMetricsService": "active",
+    "monthlyDataService": "active",
     "webSocketService": "active",
     "schedulerEnabled": true,
-    "automationLevel": "FULL"
+    "automationLevel": "FULL",
+    "totalSchedulers": 3
   },
   "financialMetricsScheduler": {
     "currentEasternTime": "2024-01-15 08:45:30 EST",
@@ -349,6 +361,23 @@ curl -X POST "http://localhost:8080/api/stocks/trades/websocket/connect"
       "automation": "No manual intervention required"
     }
   },
+  "monthlyDataScheduler": {
+    "currentEasternTime": "2024-01-15 08:45:30 EST",
+    "nextScheduleInfo": "Next execution: Feb 1, 2024 at 8:00 AM EST",
+    "schedule": "Twice monthly: 1st & 15th at 8:00 AM ET",
+    "purpose": "S&P 500 list update & company profiles collection",
+    "mode": "FULLY_AUTOMATED",
+    "config": {
+      "cronExpression": "0 0 8 1,15 * ?",
+      "timezone": "America/New_York",
+      "description": "Every 1st and 15th day of month at 8:00 AM Eastern Time",
+      "targetActions": "S&P 500 list scraping + Company profiles (503 symbols)",
+      "batchSize": 20,
+      "rateLimit": "60 requests/minute per API key",
+      "estimatedDuration": "~10-15 minutes (list update + 503 profiles)",
+      "automation": "No manual intervention required"
+    }
+  },
   "webSocketScheduler": {
     "isPreMarketSetup": false,
     "isMarketHours": false,
@@ -361,7 +390,7 @@ curl -X POST "http://localhost:8080/api/stocks/trades/websocket/connect"
   },
   "currentTime": "2024-01-15 08:45:30 EST",
   "message": "All automated scheduler services are running normally",
-  "note": "This is a fully automated system - no manual intervention required"
+  "note": "This is a fully automated system with 3 schedulers - no manual intervention required"
 }
 ```
 
@@ -372,3 +401,23 @@ curl -X POST "http://localhost:8080/api/stocks/trades/websocket/connect"
 # Get complete scheduler status (includes health, config, and all schedulers)
 curl http://localhost:8080/api/scheduler/status
 ```
+
+### Version 2.1.0 - Enhanced Scheduling & Rate Limiting (Latest)
+
+**🔄 Automated Scheduling System:**
+- **Daily Financial Metrics Collection**: Automatic S&P 500 data collection at 9:00 AM ET
+- **Monthly Data Collection**: S&P 500 list & company profiles update twice monthly (1st & 15th at 8:00 AM ET)
+- **Smart WebSocket Lifecycle**: Pre-market setup (9:00 AM) → Market data saving (9:30 AM - 4:00 PM)
+- **No Data Loss Protection**: Connections established before market open for instant readiness
+- **Full Automation**: Zero manual intervention required across all 3 schedulers
+
+**📊 Enhanced API Management:**
+- **Scheduler Monitoring**: 1 endpoint for complete automated system status monitoring
+- **3-Scheduler Integration**: Financial Metrics + Monthly Data + WebSocket unified management
+- **Consolidated Status API**: Single endpoint provides comprehensive system information
+- **Health Monitoring**: Real-time service health and configuration details
+
+**⚡ Optimized Rate Limiting:**
+- **Finnhub API Compliance**: Proper 60 requests/minute implementation
+- **API Client Enhancement**: Built-in 1000ms intervals between requests
+- **Controller Optimization**: Removed redundant delays (0ms defaults)
