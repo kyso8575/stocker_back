@@ -1,6 +1,7 @@
 package com.stocker_back.stocker_back.controller;
 
 import com.stocker_back.stocker_back.service.StockSymbolService;
+import com.stocker_back.stocker_back.repository.StockSymbolRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -17,6 +18,7 @@ import java.util.Map;
 public class StockSymbolController {
 
     private final StockSymbolService stockSymbolService;
+    private final StockSymbolRepository stockSymbolRepository;
     
     /**
      * Finnhub API에서 모든 주식 심볼 데이터를 배치로 가져와 데이터베이스에 저장합니다.
@@ -65,20 +67,30 @@ public class StockSymbolController {
         log.info("Received request to fetch stock symbol: {} for exchange: {}", symbol, exchange);
         
         Map<String, Object> response = new HashMap<>();
-        response.put("symbol", symbol);
+        response.put("symbol", symbol.toUpperCase());
         response.put("exchange", exchange);
         
         try {
+            // 먼저 이미 존재하는지 확인
+            boolean symbolExists = stockSymbolRepository.existsBySymbol(symbol.toUpperCase());
+            
+            if (symbolExists) {
+                response.put("success", true);
+                response.put("savedCount", 0);
+                response.put("message", String.format("Symbol %s already exists in database", symbol.toUpperCase()));
+                return ResponseEntity.ok(response);
+            }
+            
             int savedCount = stockSymbolService.fetchAndSaveStockSymbols(exchange, symbol);
             
             response.put("success", true);
             response.put("savedCount", savedCount);
             
             if (savedCount > 0) {
-                response.put("message", String.format("Symbol %s successfully saved for exchange %s", symbol, exchange));
+                response.put("message", String.format("Symbol %s successfully saved for exchange %s", symbol.toUpperCase(), exchange));
                 return ResponseEntity.status(HttpStatus.CREATED).body(response);
             } else {
-                response.put("message", String.format("Symbol %s not found for exchange %s", symbol, exchange));
+                response.put("message", String.format("Symbol %s not found in exchange %s", symbol.toUpperCase(), exchange));
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
             }
             

@@ -3,8 +3,6 @@ package com.stocker_back.stocker_back.controller;
 import com.stocker_back.stocker_back.domain.Trade;
 import com.stocker_back.stocker_back.service.MultiKeyFinnhubWebSocketService;
 import com.stocker_back.stocker_back.repository.TradeRepository;
-import com.stocker_back.stocker_back.service.ScheduledWebSocketService;
-import com.stocker_back.stocker_back.dto.FinnhubTradeDTO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -28,7 +26,6 @@ public class TradeController {
     
     private final MultiKeyFinnhubWebSocketService multiKeyWebSocketService;
     private final TradeRepository tradeRepository;
-    private final ScheduledWebSocketService scheduledWebSocketService;
     
     // ===== 거래 데이터 조회 API =====
     
