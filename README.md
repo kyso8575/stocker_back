@@ -18,7 +18,7 @@ S&P 500 주식의 실시간 거래 데이터를 수집하고 RESTful API로 제�
 - 🛠️ **설정 가능한 모니터링**: 연결 상태 모니터링 간격 조절 가능
 - 💾 **효율적인 데이터 저장**: PostgreSQL 배치 처리로 성능 최적화
 - 🔄 **자동 정리**: 7일 이상 된 데이터 자동 삭제
-- 🌐 **완전한 REST API**: 22개의 RESTful 엔드포인트로 모든 기능 제공
+- 🌐 **완전한 REST API**: 24개의 RESTful 엔드포인트 제공
 - 📡 **SSE 실시간 스트리밍**: Server-Sent Events로 브라우저 실시간 데이터 전송
 - 📈 **포괄적인 데이터 관리**: 심볼, 재무지표, 회사프로필, 뉴스 통합 관리
 - 🔒 **중복 방지**: 스마트한 중복 데이터 방지 및 명확한 응답 메시지
@@ -99,9 +99,11 @@ finnhub.api.key.1=your_finnhub_api_key
 | `POST` | `/api/stocks/symbols/batch` | 모든 주식 심볼 수집 |
 | `POST` | `/api/stocks/symbols/{symbol}` | 특정 심볼 수집 |
 | `POST` | `/api/stocks/financial-metrics/batch` | 재무지표 배치 수집 |
+| `POST` | `/api/stocks/financial-metrics/sp500` | S&P 500 재무지표 수집 |
 | `POST` | `/api/stocks/financial-metrics/{symbol}` | 재무지표 개별 수집 |
 | `GET` | `/api/stocks/financial-metrics/{symbol}` | 재무지표 조회 |
 | `POST` | `/api/stocks/company-profiles/batch` | 회사프로필 배치 수집 |
+| `POST` | `/api/stocks/company-profiles/sp500` | S&P 500 회사프로필 수집 |
 | `POST` | `/api/stocks/company-profiles/{symbol}` | 회사프로필 개별 수집 |
 | `GET` | `/api/stocks/company-profiles/{symbol}` | 회사프로필 조회 |
 
@@ -145,8 +147,17 @@ curl -X POST "http://localhost:8080/api/stocks/symbols/batch?exchange=US"
 # 재무지표 수집 (배치)
 curl -X POST "http://localhost:8080/api/stocks/financial-metrics/batch?batchSize=20&delayMs=500"
 
+# S&P 500 재무지표 수집 (S&P 500 종목만)
+curl -X POST "http://localhost:8080/api/stocks/financial-metrics/sp500?batchSize=20&delayMs=500"
+
 # 특정 심볼 재무지표
 curl -X POST "http://localhost:8080/api/stocks/financial-metrics/AAPL"
+
+# 회사프로필 수집 (배치)
+curl -X POST "http://localhost:8080/api/stocks/company-profiles/batch?batchSize=20&delayMs=500"
+
+# S&P 500 회사프로필 수집 (S&P 500 종목만)
+curl -X POST "http://localhost:8080/api/stocks/company-profiles/sp500?batchSize=20&delayMs=500"
 ```
 
 ### WebSocket 관리

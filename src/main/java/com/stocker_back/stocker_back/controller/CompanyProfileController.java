@@ -155,4 +155,44 @@ public class CompanyProfileController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
+
+    /**
+     * S&P 500 종목들에 대한 회사 프로필 정보를 Finnhub API에서 가져와 데이터베이스에 저장
+     * @param batchSize 한 번에 처리할 주식 수 (기본값: 20)
+     * @param delayMs API 호출 사이의 지연 시간(밀리초) (기본값: 500)
+     * @return 업데이트된 회사 프로필 수와 성공 여부를 담은 응답
+     */
+    @PostMapping("/sp500")
+    public ResponseEntity<Map<String, Object>> fetchSp500CompanyProfiles(
+            @RequestParam(defaultValue = "20") int batchSize,
+            @RequestParam(defaultValue = "500") int delayMs) {
+        
+        log.info("Received request to fetch S&P 500 company profiles with batchSize={}, delayMs={}", batchSize, delayMs);
+        
+        try {
+            int updatedCount = companyProfileService.fetchAndSaveSp500CompanyProfiles(batchSize, delayMs);
+            
+            // S&P 500 중 빈 프로필과 유효한 프로필 개수 조회
+            long validSp500ProfilesCount = stockSymbolRepository.countByIsSp500TrueAndProfileEmptyFalse();
+            long emptySp500ProfilesCount = stockSymbolRepository.countByIsSp500TrueAndProfileEmptyTrue();
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("totalProcessed", updatedCount);
+            response.put("validSp500Profiles", validSp500ProfilesCount);
+            response.put("emptySp500Profiles", emptySp500ProfilesCount);
+            response.put("message", String.format("Successfully processed %d S&P 500 company profiles (valid: %d, empty: %d)", 
+                    updatedCount, validSp500ProfilesCount, emptySp500ProfilesCount));
+            
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (Exception e) {
+            log.error("Error fetching S&P 500 company profiles: ", e);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
 } 

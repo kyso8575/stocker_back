@@ -252,4 +252,36 @@ public class FinancialMetricsController {
                 LocalDateTime.now();
         }
     }
+
+    /**
+     * S&P 500 종목들에 대한 기본 재무 지표를 Finnhub API에서 가져와 데이터베이스에 저장
+     * @param batchSize 한 번에 처리할 주식 수 (기본값: 20)
+     * @param delayMs API 호출 사이의 지연 시간(밀리초) (기본값: 500)
+     * @return 처리된 재무 지표 수와 성공 여부를 담은 응답
+     */
+    @PostMapping("/sp500")
+    public ResponseEntity<Map<String, Object>> fetchSp500FinancialMetrics(
+            @RequestParam(defaultValue = "20") int batchSize,
+            @RequestParam(defaultValue = "500") int delayMs) {
+        
+        log.info("Received request to fetch financial metrics for S&P 500 symbols with batchSize={}, delayMs={}", 
+                batchSize, delayMs);
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            int savedCount = financialMetricsService.fetchAndSaveSp500BasicFinancials(batchSize, delayMs);
+            
+            response.put("success", true);
+            response.put("processedCount", savedCount);
+            response.put("message", String.format("Successfully processed financial metrics for %d S&P 500 symbols", savedCount));
+            
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (Exception e) {
+            log.error("Error fetching S&P 500 financial metrics: {}", e.getMessage());
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
 } 

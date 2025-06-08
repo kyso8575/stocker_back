@@ -129,6 +129,48 @@ public class FinancialMetricsService {
     }
     
     /**
+     * S&P 500 종목들에 대한 기본 재무 지표를 가져와 저장
+     * @param batchSize 배치 크기
+     * @param delayMs API 호출 사이의 지연 시간(밀리초)
+     * @return 성공적으로 저장된 심볼 수
+     */
+    public int fetchAndSaveSp500BasicFinancials(int batchSize, int delayMs) {
+        log.info("Starting to fetch basic financial metrics for S&P 500 symbols with batchSize={}, delayMs={}", 
+                batchSize, delayMs);
+        
+        // S&P 500 종목들 중 유효한 프로필을 가진 것들만 조회
+        List<StockSymbol> sp500Symbols = stockSymbolRepository.findByIsSp500TrueAndProfileEmptyFalse();
+        log.info("Found {} S&P 500 symbols with valid company profiles", sp500Symbols.size());
+        
+        int totalProcessed = 0;
+        int totalSkipped = 0;
+        int totalBatches = (int) Math.ceil((double) sp500Symbols.size() / batchSize);
+        
+        for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+            int startIndex = batchIndex * batchSize;
+            int endIndex = Math.min(startIndex + batchSize, sp500Symbols.size());
+            List<StockSymbol> batch = sp500Symbols.subList(startIndex, endIndex);
+            
+            log.info("Processing S&P 500 batch {}/{} with {} symbols", 
+                    batchIndex + 1, totalBatches, batch.size());
+            
+            // 배치별로 처리하고 결과를 누적
+            BatchResult result = processBatchWithNewTransaction(batch, delayMs);
+            totalProcessed += result.getProcessedCount();
+            totalSkipped += result.getSkippedCount();
+            
+            log.info("Completed S&P 500 batch {}/{}, batch successful: {}, batch skipped: {}, total successful: {}, total skipped: {}", 
+                    batchIndex + 1, totalBatches, result.getProcessedCount(), result.getSkippedCount(), 
+                    totalProcessed, totalSkipped);
+        }
+        
+        log.info("Completed fetching financial metrics for S&P 500 symbols. Total successful: {}/{}, Total skipped: {}", 
+                totalProcessed, sp500Symbols.size(), totalSkipped);
+        
+        return totalProcessed;
+    }
+    
+    /**
      * 배치 처리 결과를 담는 내부 클래스
      */
     private static class BatchResult {
