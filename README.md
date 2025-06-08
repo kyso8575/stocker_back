@@ -93,7 +93,7 @@ finnhub.api.key.1=your_finnhub_api_key
 | `POST` | `/api/stocks/trades/websocket/connect` | 연결 시작 |
 | `POST` | `/api/stocks/trades/websocket/disconnect` | 연결 해제 |
 
-### 📊 주식 데이터 관리  
+### 📊 주식 데이터 관리
 | 메서드 | 엔드포인트 | 설명 |
 |--------|-----------|------|
 | `POST` | `/api/stocks/symbols/batch` | 모든 주식 심볼 수집 |

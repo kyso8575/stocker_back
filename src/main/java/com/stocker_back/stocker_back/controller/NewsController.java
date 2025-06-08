@@ -41,9 +41,9 @@ public class NewsController {
         
         // count 파라미터 검증
         if (count != null && count <= 0) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("success", false);
-            errorResponse.put("error", "Parameter 'count' must be a positive integer");
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    errorResponse.put("success", false);
+                    errorResponse.put("error", "Parameter 'count' must be a positive integer");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
         }
         
@@ -66,7 +66,7 @@ public class NewsController {
             } else {
                 response.put("message", String.format("Successfully fetched %d news items for %s", 
                         newsItems.size(), symbol));
-                return ResponseEntity.ok(response);
+            return ResponseEntity.ok(response);
             }
             
         } catch (IllegalArgumentException e) {
@@ -101,9 +101,9 @@ public class NewsController {
         
         // count 파라미터 검증
         if (count != null && count <= 0) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("success", false);
-            errorResponse.put("error", "Parameter 'count' must be a positive integer");
+                    Map<String, Object> errorResponse = new HashMap<>();
+                    errorResponse.put("success", false);
+                    errorResponse.put("error", "Parameter 'count' must be a positive integer");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
         }
         
@@ -125,7 +125,7 @@ public class NewsController {
             } else {
                 response.put("message", String.format("Successfully fetched %d market news items", 
                         newsItems.size()));
-                return ResponseEntity.ok(response);
+            return ResponseEntity.ok(response);
             }
             
         } catch (IllegalArgumentException e) {

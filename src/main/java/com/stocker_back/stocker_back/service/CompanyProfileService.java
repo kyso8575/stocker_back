@@ -182,6 +182,19 @@ public class CompanyProfileService {
     }
     
     /**
+     * 상세한 결과와 함께 회사 프로필 정보를 가져옵니다.
+     * @param symbol 주식 심볼 (예: AAPL)
+     * @return API 결과 (성공/실패/rate limit 등 구분)
+     */
+    public FinnhubApiClient.ApiResult<CompanyProfileDTO> fetchCompanyProfileWithResult(String symbol) {
+        return finnhubApiClient.getWithResult(
+                "/stock/profile2",
+                CompanyProfileDTO.class,
+                "symbol", symbol
+        );
+    }
+    
+    /**
      * 주식 심볼 엔티티에 회사 프로필 정보를 업데이트합니다.
      * @param symbol 업데이트할 주식 심볼 엔티티
      * @param profileDTO 회사 프로필 DTO
@@ -263,19 +276,21 @@ public class CompanyProfileService {
      * @return 업데이트된 회사 프로필 수
      */
     public int fetchAndSaveSp500CompanyProfiles(int batchSize, int delayMs) {
-        log.info("Fetching S&P 500 company profiles with batchSize={}, delayMs={}", batchSize, delayMs);
+        log.info("🚀 Starting S&P 500 company profile collection (batch: {}, delay: {}ms)", batchSize, delayMs);
         
         // 배치 크기가 지정되지 않았거나 너무 작은 경우 기본값 설정
         if (batchSize <= 0) {
             batchSize = 100;
         }
         
-        // S&P 500 심볼만 조회
+        // S&P 500 종목 전체 조회
         List<StockSymbol> sp500Symbols = stockSymbolRepository.findByIsSp500True();
-        log.info("Found {} S&P 500 stock symbols to process for company profiles", sp500Symbols.size());
+        log.info("📊 Found {} S&P 500 symbols to process", sp500Symbols.size());
         
-        int updatedCount = 0;
-        int emptyCount = 0;
+        int successCount = 0;
+        int noDataCount = 0;
+        int rateLimitCount = 0;
+        int errorCount = 0;
         int totalProcessed = 0;
         
         // 배치 처리를 위한 리스트
@@ -286,49 +301,57 @@ public class CompanyProfileService {
             totalProcessed++;
             
             try {
-                log.info("Processing S&P 500 symbol {}/{}: {}", totalProcessed, sp500Symbols.size(), symbol.getSymbol());
-                
-                // 회사 프로필 정보 가져오기
-                CompanyProfileDTO profileDTO = fetchCompanyProfile(symbol.getSymbol());
+                // 상세한 결과와 함께 회사 프로필 정보 가져오기
+                FinnhubApiClient.ApiResult<CompanyProfileDTO> result = fetchCompanyProfileWithResult(symbol.getSymbol());
                 symbol.setLastProfileUpdated(LocalDateTime.now());
                 
-                if (profileDTO != null) {
-                    // 프로필 정보 업데이트
-                    updateCompanyProfile(symbol, profileDTO);
+                if (result.isSuccess()) {
+                    // 성공: 프로필 정보 업데이트
+                    updateCompanyProfile(symbol, result.getData());
                     symbol.setProfileEmpty(false);
-                    batch.add(symbol);  // 배치에 추가
-                    updatedCount++;
+                    batch.add(symbol);
+                    successCount++;
                     
-                    log.debug("Updated S&P 500 company profile for symbol: {} ({}/{})", 
-                             symbol.getSymbol(), totalProcessed, sp500Symbols.size());
-                } else {
-                    // 빈 응답인 경우 표시
+                    log.debug("✅ {} - Company profile updated", symbol.getSymbol());
+                } else if (result.isNoData()) {
+                    // 데이터 없음
                     symbol.setProfileEmpty(true);
-                    batch.add(symbol);  // 배치에 추가
-                    emptyCount++;
+                    batch.add(symbol);
+                    noDataCount++;
                     
-                    log.debug("Marked empty profile for S&P 500 symbol: {} ({}/{})", 
-                             symbol.getSymbol(), totalProcessed, sp500Symbols.size());
+                    log.debug("📭 {} - No profile data available", symbol.getSymbol());
+                } else if (result.isRateLimitExceeded()) {
+                    // Rate limit 초과
+                    symbol.setProfileEmpty(true);
+                    batch.add(symbol);
+                    rateLimitCount++;
+                    
+                    log.warn("⏳ {} - Rate limit exceeded after all retries", symbol.getSymbol());
+                } else {
+                    // 기타 에러
+                    symbol.setProfileEmpty(true);
+                    batch.add(symbol);
+                    errorCount++;
+                    
+                    log.warn("❌ {} - API error: {}", symbol.getSymbol(), result.getMessage());
                 }
                 
                 // 배치 크기에 도달하면 저장
                 if (batch.size() >= batchSize) {
-                    // 별도의 트랜잭션으로 배치 저장 - 이 메소드는 새로운 트랜잭션을 시작함
                     saveCompanyProfileBatch(batch);
-                    log.info("Saved S&P 500 batch of {} company profiles (batch: {}, total processed: {}/{})", 
-                            batch.size(), 
-                            (totalProcessed / batchSize), 
-                            totalProcessed, 
-                            sp500Symbols.size());
+                    log.info("💾 Saved batch: {} profiles | Progress: {}/{} ({}%) - ✅{} 📭{} ⏳{} ❌{}", 
+                            batch.size(), totalProcessed, sp500Symbols.size(),
+                            String.format("%.1f", (totalProcessed * 100.0) / sp500Symbols.size()),
+                            successCount, noDataCount, rateLimitCount, errorCount);
                     batch.clear();
                 }
                 
-                // 진행 상황 로깅
-                if (totalProcessed % 10 == 0 || totalProcessed == sp500Symbols.size()) {
-                    log.info("S&P 500 Progress: {}/{} symbols processed ({}%) - valid: {}, empty: {}", 
-                             totalProcessed, sp500Symbols.size(), 
-                             (totalProcessed * 100 / sp500Symbols.size()), 
-                             updatedCount, emptyCount);
+                // 진행 상황 로깅 (매 25개마다)
+                if (totalProcessed % 25 == 0 || totalProcessed == sp500Symbols.size()) {
+                    double progressPct = (totalProcessed * 100.0) / sp500Symbols.size();
+                    log.info("📊 Processing: {}/{} ({}%) - ✅{} 📭{} ⏳{} ❌{}", 
+                             totalProcessed, sp500Symbols.size(), String.format("%.1f", progressPct),
+                             successCount, noDataCount, rateLimitCount, errorCount);
                 }
                 
                 // API 레이트 제한 방지를 위한 지연
@@ -336,35 +359,28 @@ public class CompanyProfileService {
                     Thread.sleep(delayMs);
                 }
             } catch (InterruptedException e) {
-                log.error("Thread interrupted during S&P 500 company profile fetch", e);
+                log.error("🛑 Thread interrupted during S&P 500 company profile collection", e);
                 Thread.currentThread().interrupt();
                 break;
             } catch (Exception e) {
-                log.error("Error fetching S&P 500 company profile for symbol {}: {}", symbol.getSymbol(), e.getMessage());
+                log.error("🔥 Unexpected error processing symbol {}: {}", symbol.getSymbol(), e.getMessage());
                 
-                // 에러 발생 시에도 빈 프로필로 표시하고 배치에 추가
+                // 예외 발생 시에도 빈 프로필로 표시하고 배치에 추가
                 try {
                     symbol.setProfileEmpty(true);
                     symbol.setLastProfileUpdated(LocalDateTime.now());
-                    batch.add(symbol);  // 배치에 추가
-                    emptyCount++;
+                    batch.add(symbol);
+                    errorCount++;
                     
                     // 배치 크기에 도달하면 저장
                     if (batch.size() >= batchSize) {
-                        // 별도의 트랜잭션으로 배치 저장
                         saveCompanyProfileBatch(batch);
-                        log.info("Saved S&P 500 batch of {} company profiles (batch: {}, total processed: {}/{})", 
-                                batch.size(), 
-                                (totalProcessed / batchSize), 
-                                totalProcessed, 
-                                sp500Symbols.size());
+                        log.debug("💾 Saved batch of {} profiles (processed: {}/{})", 
+                                batch.size(), totalProcessed, sp500Symbols.size());
                         batch.clear();
                     }
-                    
-                    log.debug("Marked error for S&P 500 symbol: {} ({}/{})", 
-                             symbol.getSymbol(), totalProcessed, sp500Symbols.size());
                 } catch (Exception ex) {
-                    log.error("Error updating profile status for S&P 500 symbol {}: {}", 
+                    log.error("💥 Critical error updating profile status for symbol {}: {}", 
                             symbol.getSymbol(), ex.getMessage());
                 }
             }
@@ -372,14 +388,17 @@ public class CompanyProfileService {
         
         // 남은 배치 저장
         if (!batch.isEmpty()) {
-            // 별도의 트랜잭션으로 배치 저장
             saveCompanyProfileBatch(batch);
-            log.info("Saved final S&P 500 batch of {} company profiles", batch.size());
+            log.debug("💾 Saved final batch of {} profiles", batch.size());
         }
         
-        log.info("Completed S&P 500 company profile update: {} valid profiles, {} empty profiles", 
-                updatedCount, emptyCount);
+        log.info("🎯 S&P 500 company profile collection completed:");
+        log.info("   ✅ Success: {} profiles", successCount);
+        log.info("   📭 No data: {} profiles", noDataCount);
+        log.info("   ⏳ Rate limited: {} profiles", rateLimitCount);
+        log.info("   ❌ Errors: {} profiles", errorCount);
+        log.info("   📊 Total processed: {}/{}", totalProcessed, sp500Symbols.size());
         
-        return updatedCount + emptyCount;
+        return totalProcessed;
     }
 } 

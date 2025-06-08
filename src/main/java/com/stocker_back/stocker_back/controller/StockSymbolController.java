@@ -29,7 +29,7 @@ public class StockSymbolController {
     public ResponseEntity<Map<String, Object>> fetchAllStockSymbols(
             @RequestParam(defaultValue = "US") String exchange) {
         
-        log.info("Received request to fetch all stock symbols for exchange: {}", exchange);
+            log.info("Received request to fetch all stock symbols for exchange: {}", exchange);
         
         Map<String, Object> response = new HashMap<>();
         response.put("exchange", exchange);
@@ -38,7 +38,7 @@ public class StockSymbolController {
             int savedCount = stockSymbolService.fetchAndSaveStockSymbols(exchange, null);
             
             response.put("success", true);
-            response.put("savedCount", savedCount);
+                response.put("savedCount", savedCount);
             response.put("message", String.format("Successfully saved %d stock symbols for exchange %s", savedCount, exchange));
             
             return ResponseEntity.status(HttpStatus.CREATED).body(response);

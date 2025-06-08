@@ -25,13 +25,13 @@ public class CompanyProfileController {
     /**
      * 모든 주식 심볼에 대한 회사 프로필 정보를 Finnhub API에서 가져와 데이터베이스에 저장
      * @param batchSize 한 번에 처리할 주식 수 (기본값: 20)
-     * @param delayMs API 호출 사이의 지연 시간(밀리초) (기본값: 500)
+     * @param delayMs API 호출 사이의 지연 시간(밀리초) (기본값: 0, API 클라이언트에서 rate limit 적용)
      * @return 업데이트된 회사 프로필 수와 성공 여부를 담은 응답
      */
     @PostMapping("/batch")
     public ResponseEntity<Map<String, Object>> fetchAllCompanyProfiles(
             @RequestParam(defaultValue = "20") int batchSize,
-            @RequestParam(defaultValue = "500") int delayMs) {
+            @RequestParam(defaultValue = "0") int delayMs) {
         
         log.info("Received request to fetch all company profiles with batchSize={}, delayMs={}", batchSize, delayMs);
         
@@ -159,13 +159,13 @@ public class CompanyProfileController {
     /**
      * S&P 500 종목들에 대한 회사 프로필 정보를 Finnhub API에서 가져와 데이터베이스에 저장
      * @param batchSize 한 번에 처리할 주식 수 (기본값: 20)
-     * @param delayMs API 호출 사이의 지연 시간(밀리초) (기본값: 500)
+     * @param delayMs API 호출 사이의 지연 시간(밀리초) (기본값: 0, API 클라이언트에서 rate limit 적용)
      * @return 업데이트된 회사 프로필 수와 성공 여부를 담은 응답
      */
     @PostMapping("/sp500")
     public ResponseEntity<Map<String, Object>> fetchSp500CompanyProfiles(
             @RequestParam(defaultValue = "20") int batchSize,
-            @RequestParam(defaultValue = "500") int delayMs) {
+            @RequestParam(defaultValue = "0") int delayMs) {
         
         log.info("Received request to fetch S&P 500 company profiles with batchSize={}, delayMs={}", batchSize, delayMs);
         
