@@ -138,35 +138,21 @@ finnhub.scheduled.websocket.monitor-interval-ms=5000
 
 ## 📡 API 엔드포인트
 
-### 🔧 실시간 거래 데이터 및 WebSocket 관리
+### 🔧 실시간 거래 데이터 및 WebSocket 관리 ⭐ REST API 개선
 
 #### WebSocket 연결 관리
 | 메서드 | 엔드포인트 | 설명 |
 |--------|-----------|------|
-| `GET` | `/api/stocks/info/trades/websocket/status` | WebSocket 연결 상태 확인 |
-| `GET` | `/api/stocks/info/trades/websocket/schedule_status` | 스케줄링된 WebSocket 상태 확인 |
-| `POST` | `/api/stocks/info/trades/websocket/connect` | WebSocket 연결 시작 |
-| `POST` | `/api/stocks/info/trades/websocket/disconnect` | WebSocket 연결 해제 |
-| `POST` | `/api/stocks/info/trades/websocket/subscribe?symbol=AAPL` | 심볼 구독 (정보성) |
-| `POST` | `/api/stocks/info/trades/websocket/unsubscribe?symbol=AAPL` | 심볼 구독 해제 (정보성) |
+| `GET` | `/api/stocks/trades/websocket/status` | WebSocket 연결 상태 확인 |
+| `POST` | `/api/stocks/trades/websocket/connect` | WebSocket 연결 시작 |
+| `POST` | `/api/stocks/trades/websocket/disconnect` | WebSocket 연결 해제 |
 
 #### 거래 데이터 조회
 | 메서드 | 엔드포인트 | 설명 |
 |--------|-----------|------|
-| `GET` | `/api/stocks/info/trades/latest?symbol=All&limit=10` | 모든 심볼의 최신 거래 데이터 |
-| `GET` | `/api/stocks/info/trades/latest?symbol=AAPL&limit=10` | 특정 심볼의 최신 거래 데이터 |
-| `GET` | `/api/stocks/info/trades/range?startTime=2024-01-01T00:00:00&endTime=2024-01-02T00:00:00` | 시간 범위별 조회 |
-| `GET` | `/api/stocks/info/trades/{symbol}/latest-price` | 특정 심볼의 최신 가격 |
-| `GET` | `/api/stocks/info/trades/statistics` | 심볼별 거래 통계 |
-| `GET` | `/api/stocks/info/trades/market-hours` | 미국 시장 시간 정보 |
-| `POST` | `/api/stocks/info/trades/websocket/schedule-toggle?enabled=true` | 스케줄링 서비스 활성화/비활성화 |
-
-#### 저장 상태 및 메모리 데이터 조회 ⭐ 새로운 기능
-| 메서드 | 엔드포인트 | 설명 |
-|--------|-----------|------|
-| `GET` | `/api/stocks/info/trades/websocket/save-status` | 심볼별 저장 상태 및 간격 정보 |
-| `GET` | `/api/stocks/info/trades/websocket/latest-memory?symbol=All` | 메모리의 실시간 데이터 (모든 심볼) |
-| `GET` | `/api/stocks/info/trades/websocket/latest-memory?symbol=AAPL` | 메모리의 실시간 데이터 (특정 심볼) |
+| `GET` | `/api/stocks/trades/latest/{symbol}?limit=10` | 특정 심볼의 최신 거래 데이터 |
+| `GET` | `/api/stocks/trades/history?from=2024-01-01T00:00:00&to=2024-01-02T00:00:00` | 시간 범위별 거래 데이터 조회 |
+| `GET` | `/api/stocks/trades/{symbol}/price` | 특정 심볼의 최신 가격 |
 
 ### 📊 주식 데이터 관리
 
@@ -226,44 +212,6 @@ finnhub.scheduled.websocket.monitor-interval-ms=5000
 }
 ```
 
-#### 스케줄링된 WebSocket 상태 확인
-```json
-{
-  "enabled": true,
-  "isMarketHours": false,
-  "isConnected": false,
-  "nextMarketEvent": "Market opens at: 2025-06-05T09:30-04:00[America/New_York]",
-  "description": "Automated WebSocket management during US market hours (9:30 AM - 4:00 PM ET)",
-  "monitoringInterval": "10 seconds",
-  "timestamp": "2025-06-05T17:23:40.526983"
-}
-```
-
-#### 최신 거래 데이터 조회 (모든 심볼)
-```json
-{
-  "symbol": "All",
-  "trades": [
-    {
-      "symbol": "AAPL",
-      "latestTrade": {
-        "id": 1234,
-        "symbol": "AAPL",
-        "price": 150.25,
-        "volume": 100,
-        "timestamp": 1705301400000,
-        "receivedAt": "2024-01-15T10:30:00"
-      },
-      "tradeCount": 1500
-    }
-  ],
-  "count": 50,
-  "limit": 10,
-  "description": "Latest trade data for all symbols",
-  "timestamp": "2025-06-05T17:23:56.288587"
-}
-```
-
 #### 재무 지표 수집 성공
 ```json
 {
@@ -318,71 +266,6 @@ finnhub.scheduled.websocket.monitor-interval-ms=5000
   ],
   "count": 15,
   "message": "Successfully fetched 15 news items for AAPL"
-}
-```
-
-#### 심볼별 저장 상태 조회 ⭐ 새로운 기능
-```json
-{
-  "status": "success",
-  "saveInterval": "10 seconds",
-  "summary": {
-    "totalSymbols": 95,
-    "recentlySaved": 23,
-    "pendingSave": 72,
-    "saveIntervalSeconds": 10,
-    "timestamp": "2024-01-15T14:30:25.123456"
-  },
-  "recentSaves": {
-    "AAPL": "2024-01-15T14:30:20",
-    "MSFT": "2024-01-15T14:30:18",
-    "GOOGL": "2024-01-15T14:30:15"
-  },
-  "description": "Symbol-based save status with 10-second interval",
-  "timestamp": "2024-01-15T14:30:25.123456"
-}
-```
-
-#### 실시간 메모리 데이터 조회 ⭐ 새로운 기능
-```json
-{
-  "status": "success",
-  "symbol": "AAPL",
-  "latestTrade": {
-    "symbol": "AAPL",
-    "price": 150.75,
-    "volume": 1250,
-    "conditions": ["12", "37"],
-    "timestamp": 1705314600000
-  },
-  "source": "memory (real-time)",
-  "description": "Latest trade data from WebSocket memory",
-  "timestamp": "2024-01-15T14:30:25.123456"
-}
-```
-
-#### 모든 심볼의 메모리 데이터 요약
-```json
-{
-  "status": "success",
-  "totalSymbols": 95,
-  "samples": [
-    {
-      "symbol": "AAPL",
-      "price": 150.75,
-      "volume": 1250,
-      "timestamp": 1705314600000
-    },
-    {
-      "symbol": "MSFT",
-      "price": 375.20,
-      "volume": 2100,
-      "timestamp": 1705314598000
-    }
-  ],
-  "source": "memory (real-time)",
-  "description": "Latest trade data from WebSocket memory (top 20 symbols)",
-  "timestamp": "2024-01-15T14:30:25.123456"
 }
 ```
 
@@ -453,45 +336,6 @@ curl -X POST "http://localhost:8080/api/stocks/symbols/batch?exchange=US"
 # 특정 심볼만 수집
 curl -X POST "http://localhost:8080/api/stocks/symbols/AAPL?exchange=US"
 ```
-
-#### WebSocket 모니터링
-```bash
-# WebSocket 연결 상태 확인
-curl http://localhost:8080/api/stocks/info/trades/websocket/status
-
-# 스케줄링된 WebSocket 상태 확인
-curl http://localhost:8080/api/stocks/info/trades/websocket/schedule_status
-
-# 시장 시간 확인
-curl http://localhost:8080/api/stocks/info/trades/market-hours
-
-# 거래 통계 확인
-curl http://localhost:8080/api/stocks/info/trades/statistics
-
-# S&P 500 심볼 목록 확인
-curl http://localhost:8080/api/stocks/sp500
-```
-
-#### 저장 상태 및 실시간 데이터 모니터링 ⭐
-
-```bash
-# 심볼별 저장 상태 확인 (10초 간격 정보)
-curl http://localhost:8080/api/stocks/info/trades/websocket/save-status
-
-# 실시간 메모리 데이터 확인 (모든 심볼)
-curl http://localhost:8080/api/stocks/info/trades/websocket/latest-memory
-
-# 특정 심볼의 실시간 데이터
-curl "http://localhost:8080/api/stocks/info/trades/websocket/latest-memory?symbol=AAPL"
-
-# 저장 간격 확인
-curl http://localhost:8080/api/stocks/info/trades/websocket/save-status | jq '.saveInterval'
-```
-
-#### 오류 처리
-- 모든 API는 `success` 필드로 성공/실패 표시
-- 실패시 `error` 필드에 상세 오류 메시지 제공
-- HTTP 상태 코드와 함께 적절한 오류 응답 반환
 
 ## 🔧 시스템 구성 요소
 
@@ -572,16 +416,7 @@ CREATE TABLE stock_symbols (
 
 ```bash
 # WebSocket 연결 상태 확인
-curl http://localhost:8080/api/stocks/info/trades/websocket/status
-
-# 스케줄링된 WebSocket 상태 확인
-curl http://localhost:8080/api/stocks/info/trades/websocket/schedule_status
-
-# 시장 시간 확인
-curl http://localhost:8080/api/stocks/info/trades/market-hours
-
-# 거래 통계 확인
-curl http://localhost:8080/api/stocks/info/trades/statistics
+curl http://localhost:8080/api/stocks/trades/websocket/status
 
 # S&P 500 심볼 목록 확인
 curl http://localhost:8080/api/stocks/sp500
@@ -598,22 +433,6 @@ grep "WebSocket" logs/spring.log | tail -20
 
 # 거래 데이터 저장 상태
 grep "Saved.*trades" logs/spring.log | tail -10
-```
-
-### 저장 상태 및 실시간 데이터 모니터링 ⭐
-
-```bash
-# 심볼별 저장 상태 확인 (10초 간격 정보)
-curl http://localhost:8080/api/stocks/info/trades/websocket/save-status
-
-# 실시간 메모리 데이터 확인 (모든 심볼)
-curl http://localhost:8080/api/stocks/info/trades/websocket/latest-memory
-
-# 특정 심볼의 실시간 데이터
-curl "http://localhost:8080/api/stocks/info/trades/websocket/latest-memory?symbol=AAPL"
-
-# 저장 간격 확인
-curl http://localhost:8080/api/stocks/info/trades/websocket/save-status | jq '.saveInterval'
 ```
 
 ## 🐛 문제 해결
@@ -707,5 +526,3 @@ spring.jpa.properties.hibernate.jdbc.batch_size=100
 **⭐ 이 프로젝트가 유용하다면 스타를 눌러주세요! ⭐**
 
 </div>
-
-
