@@ -20,7 +20,6 @@ import java.math.BigDecimal;
 import java.net.URI;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -75,6 +74,9 @@ public class MultiKeyFinnhubWebSocketService {
     // ===== Symbol-based Save Control (설정 가능한 간격 저장) =====
     private final ConcurrentHashMap<String, LocalDateTime> lastSaveTimeBySymbol = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, FinnhubTradeDTO.TradeData> latestTradeBySymbol = new ConcurrentHashMap<>();
+    
+    // ===== Data Saving Control =====
+    private volatile boolean dataSavingEnabled = true; // 기본적으로 활성화
     
     // ===== Initialization =====
     
@@ -208,6 +210,27 @@ public class MultiKeyFinnhubWebSocketService {
         return summary;
     }
     
+    /**
+     * 데이터 저장 활성화/비활성화 설정
+     * @param enabled true: 저장 활성화, false: 저장 비활성화 (연결은 유지)
+     */
+    public void setDataSavingEnabled(boolean enabled) {
+        this.dataSavingEnabled = enabled;
+        log.info("💾 Data saving {}", enabled ? "ENABLED" : "DISABLED");
+        
+        if (!enabled) {
+            log.info("📡 WebSocket connections remain active for streaming data");
+        }
+    }
+    
+    /**
+     * 현재 데이터 저장 상태 조회
+     * @return true if data saving is enabled
+     */
+    public boolean isDataSavingEnabled() {
+        return dataSavingEnabled;
+    }
+    
     // ===== Private Implementation Methods =====
     
     /**
@@ -317,32 +340,43 @@ public class MultiKeyFinnhubWebSocketService {
         String symbol = tradeData.getSymbol();
         LocalDateTime now = LocalDateTime.now();
         
-        // 1. 최신 거래 데이터는 항상 메모리에 업데이트 (실시간 조회용)
+        // 최신 거래 데이터 업데이트 (스트리밍용)
         latestTradeBySymbol.put(symbol, tradeData);
         
-        // 2. 마지막 저장 시간 확인
+        // 데이터 저장이 비활성화된 경우 저장 건너뛰기
+        if (!dataSavingEnabled) {
+            log.trace("📡 Data received for {} but saving is disabled (pre-market setup)", symbol);
+            return;
+        }
+        
+        // 마지막 저장 시간 확인
         LocalDateTime lastSaveTime = lastSaveTimeBySymbol.get(symbol);
         
-        // 3. 10초가 지났거나 첫 번째 데이터인 경우에만 DB 저장
-        if (shouldSaveNow(lastSaveTime, now)) {
-            CompletableFuture.runAsync(() -> saveTradeToDatabase(tradeData, connectionId, symbol, now));
-            lastSaveTimeBySymbol.put(symbol, now);
+        if (lastSaveTime == null || 
+            now.minusSeconds(saveIntervalSeconds).isAfter(lastSaveTime)) {
             
-            log.debug("💾 [{}] Saving trade for symbol: {} (price: {}, interval: {}s)", 
-                    connectionId, symbol, tradeData.getPrice(), saveIntervalSeconds);
+            // 10초 간격 경과 -> 저장 수행
+            try {
+                saveTradeToDatabase(tradeData, connectionId, symbol, now);
+                lastSaveTimeBySymbol.put(symbol, now);
+                
+                log.debug("💾 [{}] Saved trade: {} @ ${} (vol: {}, last save: {}s ago)", 
+                        connectionId, 
+                        symbol, 
+                        tradeData.getPrice(),
+                        tradeData.getVolume(),
+                        lastSaveTime != null ? 
+                            java.time.Duration.between(lastSaveTime, now).getSeconds() : "first");
+                
+            } catch (Exception e) {
+                log.error("❌ Failed to save trade data for {} from [{}]", symbol, connectionId, e);
+            }
         } else {
-            // 저장하지 않는 경우 (메모리에만 유지)
+            // 10초 미경과 -> 로그만 (저장 안함)
             long secondsSinceLastSave = java.time.Duration.between(lastSaveTime, now).getSeconds();
-            log.trace("⏭️ [{}] Skipping save for symbol: {} (last saved: {}s ago, need: {}s)", 
-                    connectionId, symbol, secondsSinceLastSave, saveIntervalSeconds);
+            log.trace("📡 [{}] Received {} @ ${} (skipping save, {}s since last save)", 
+                    connectionId, symbol, tradeData.getPrice(), secondsSinceLastSave);
         }
-    }
-    
-    /**
-     * 저장 시점 판단
-     */
-    private boolean shouldSaveNow(LocalDateTime lastSaveTime, LocalDateTime now) {
-        return lastSaveTime == null || now.isAfter(lastSaveTime.plusSeconds(saveIntervalSeconds));
     }
     
     /**
