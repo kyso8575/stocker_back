@@ -173,28 +173,40 @@ finnhub.scheduled.websocket.monitor-interval-ms=5000
 #### 데이터 수집 (fetch)
 | 메서드 | 엔드포인트 | 설명 |
 |--------|-----------|------|
-| `GET` | `/api/stocks/fetch/symbols?exchange=US&symbol=AAPL` | 외부 API에서 주식 심볼 수집 |
-| `GET` | `/api/stocks/fetch/basic_financials?symbol=AAPL&batchSize=20&delayMs=500` | 외부 API에서 재무 지표 수집 |
-| `GET` | `/api/stocks/fetch/company_profiles?symbol=AAPL&batchSize=20&delayMs=500` | 외부 API에서 회사 프로필 수집 |
+| `POST` | `/api/stocks/symbols/batch?exchange=US` | 외부 API에서 모든 주식 심볼 배치 수집 |
+| `POST` | `/api/stocks/symbols/{symbol}?exchange=US` | 외부 API에서 특정 주식 심볼 수집 |
+
+#### 재무 지표 관리 ⭐ REST API 개선
+| 메서드 | 엔드포인트 | 설명 |
+|--------|-----------|------|
+| `POST` | `/api/stocks/financial-metrics/batch?batchSize=20&delayMs=500` | 모든 심볼의 재무 지표 수집 |
+| `POST` | `/api/stocks/financial-metrics/{symbol}` | 특정 심볼의 재무 지표 수집 |
+| `GET` | `/api/stocks/financial-metrics/{symbol}` | 특정 심볼의 최신 재무 지표 조회 |
+| `GET` | `/api/stocks/financial-metrics/{symbol}/history?from=2024-01-01&to=2024-01-31` | 특정 심볼의 재무 지표 이력 조회 (날짜 범위) |
+
+#### 회사 프로필 관리 ⭐ REST API 개선
+| 메서드 | 엔드포인트 | 설명 |
+|--------|-----------|------|
+| `POST` | `/api/stocks/company-profiles/batch?batchSize=20&delayMs=500` | 모든 심볼의 회사 프로필 수집 |
+| `POST` | `/api/stocks/company-profiles/{symbol}` | 특정 심볼의 회사 프로필 수집 |
+| `GET` | `/api/stocks/company-profiles/{symbol}` | 특정 심볼의 회사 프로필 조회 |
 
 #### 데이터 조회 (info)
 | 메서드 | 엔드포인트 | 설명 |
 |--------|-----------|------|
 | `GET` | `/api/stocks/info/basic_financials?symbol=AAPL` | 데이터베이스에서 재무 지표 조회 |
-| `GET` | `/api/stocks/info/company_profiles?symbol=AAPL` | 데이터베이스에서 회사 프로필 조회 |
 
 #### S&P 500 관리
 | 메서드 | 엔드포인트 | 설명 |
 |--------|-----------|------|
 | `POST` | `/api/stocks/update/sp500` | S&P 500 목록 웹스크래핑 업데이트 |
 | `GET` | `/api/stocks/sp500` | S&P 500 심볼 목록 조회 |
-| `GET` | `/api/stocks/symbols/sp500` | S&P 500 심볼 목록 조회 (StockSymbolController) |
 
-### 📰 뉴스 데이터
+### 📰 뉴스 데이터 ⭐ REST API 개선
 
 | 메서드 | 엔드포인트 | 설명 |
 |--------|-----------|------|
-| `GET` | `/api/stocks/news/company?symbol=AAPL&from=2024-01-01&to=2024-01-31&count=10` | 특정 회사 뉴스 조회 |
+| `GET` | `/api/stocks/news/companies/{symbol}?from=2024-01-01&to=2024-01-31&count=10` | 특정 회사 뉴스 조회 |
 | `GET` | `/api/stocks/news/market?from=2024-01-01&to=2024-01-31&count=20` | 시장 전체 뉴스 조회 |
 
 ### 📝 API 응답 예시
@@ -258,6 +270,7 @@ finnhub.scheduled.websocket.monitor-interval-ms=5000
   "success": true,
   "symbol": "AAPL",
   "data": {
+    "id": 1,
     "symbol": "AAPL",
     "peRatio": 28.5,
     "pbRatio": 6.2,
@@ -266,7 +279,8 @@ finnhub.scheduled.websocket.monitor-interval-ms=5000
     "currentRatio": 1.07,
     "quickRatio": 0.98,
     "grossMarginTTM": 0.441,
-    "operatingMarginTTM": 0.301
+    "operatingMarginTTM": 0.301,
+    "createdAt": "2024-01-15T10:30:00"
   },
   "message": "Successfully fetched financial metrics for AAPL"
 }
@@ -377,10 +391,67 @@ finnhub.scheduled.websocket.monitor-interval-ms=5000
 #### 배치 처리 최적화
 ```bash
 # 작은 배치로 시작 (API 제한 고려)
-curl "http://localhost:8080/api/stocks/fetch/basic_financials?batchSize=5&delayMs=1000"
+curl -X POST "http://localhost:8080/api/stocks/financial-metrics/batch?batchSize=5&delayMs=1000"
 
-# 특정 심볼만 처리
-curl "http://localhost:8080/api/stocks/fetch/company_profiles?symbol=AAPL"
+# 재무 지표 배치 수집 (모든 심볼)
+curl -X POST "http://localhost:8080/api/stocks/financial-metrics/batch?batchSize=20&delayMs=500"
+
+# 특정 심볼의 재무 지표 수집
+curl -X POST "http://localhost:8080/api/stocks/financial-metrics/AAPL"
+
+# 특정 심볼의 최신 재무 지표 조회
+curl "http://localhost:8080/api/stocks/financial-metrics/AAPL"
+
+# 특정 심볼의 재무 지표 이력 조회
+curl "http://localhost:8080/api/stocks/financial-metrics/AAPL/history"
+
+# 특정 기간의 재무 지표 이력 조회 (날짜만)
+curl "http://localhost:8080/api/stocks/financial-metrics/AAPL/history?from=2024-01-01&to=2024-01-31"
+
+# 특정 기간의 재무 지표 이력 조회 (날짜+시간)
+curl "http://localhost:8080/api/stocks/financial-metrics/AAPL/history?from=2024-01-01T09:00:00&to=2024-01-31T18:00:00"
+
+# 시작 날짜만 지정 (해당 날짜부터 현재까지)
+curl "http://localhost:8080/api/stocks/financial-metrics/AAPL/history?from=2024-01-01"
+
+# 종료 날짜만 지정 (1년 전부터 해당 날짜까지)
+curl "http://localhost:8080/api/stocks/financial-metrics/AAPL/history?to=2024-01-31"
+
+# 재무 지표 통계 조회
+curl "http://localhost:8080/api/stocks/financial-metrics/statistics"
+
+# 회사 프로필 배치 수집 (모든 심볼)
+curl -X POST "http://localhost:8080/api/stocks/company-profiles/batch?batchSize=5&delayMs=1000"
+
+# 특정 심볼의 회사 프로필 수집
+curl -X POST "http://localhost:8080/api/stocks/company-profiles/AAPL"
+
+# 특정 심볼의 회사 프로필 조회
+curl "http://localhost:8080/api/stocks/company-profiles/AAPL"
+
+# 회사 프로필 통계 조회
+curl "http://localhost:8080/api/stocks/company-profiles/statistics"
+
+# 뉴스 데이터 조회
+# 특정 회사 뉴스 조회
+curl "http://localhost:8080/api/stocks/news/companies/AAPL?from=2024-01-01&to=2024-01-31&count=10"
+
+# 시장 전체 뉴스 조회
+curl "http://localhost:8080/api/stocks/news/market?from=2024-01-01&to=2024-01-31&count=20"
+
+# 뉴스 통계 정보 조회
+curl "http://localhost:8080/api/stocks/news/statistics?from=2024-01-01&to=2024-01-31"
+
+# 최근 30일 회사 뉴스 (count 생략)
+curl "http://localhost:8080/api/stocks/news/companies/MSFT?from=2024-01-01&to=2024-01-31"
+
+#### 주식 심볼 관리 ⭐ REST API 개선
+```bash
+# 주식 심볼 데이터 배치 수집 (모든 심볼)
+curl -X POST "http://localhost:8080/api/stocks/symbols/batch?exchange=US"
+
+# 특정 심볼만 수집
+curl -X POST "http://localhost:8080/api/stocks/symbols/AAPL?exchange=US"
 ```
 
 #### WebSocket 모니터링
@@ -401,7 +472,8 @@ curl http://localhost:8080/api/stocks/info/trades/statistics
 curl http://localhost:8080/api/stocks/sp500
 ```
 
-#### 저장 상태 및 실시간 데이터 모니터링 ⭐ 새로운 기능
+#### 저장 상태 및 실시간 데이터 모니터링 ⭐
+
 ```bash
 # 심볼별 저장 상태 확인 (10초 간격 정보)
 curl http://localhost:8080/api/stocks/info/trades/websocket/save-status
@@ -409,7 +481,7 @@ curl http://localhost:8080/api/stocks/info/trades/websocket/save-status
 # 실시간 메모리 데이터 확인 (모든 심볼)
 curl http://localhost:8080/api/stocks/info/trades/websocket/latest-memory
 
-# 특정 심볼의 실시간 메모리 데이터
+# 특정 심볼의 실시간 데이터
 curl "http://localhost:8080/api/stocks/info/trades/websocket/latest-memory?symbol=AAPL"
 
 # 저장 간격 확인
@@ -531,20 +603,17 @@ grep "Saved.*trades" logs/spring.log | tail -10
 ### 저장 상태 및 실시간 데이터 모니터링 ⭐
 
 ```bash
-# 심볼별 저장 상태 및 간격 확인
+# 심볼별 저장 상태 확인 (10초 간격 정보)
 curl http://localhost:8080/api/stocks/info/trades/websocket/save-status
 
-# 실시간 메모리 데이터 (모든 심볼 요약)
+# 실시간 메모리 데이터 확인 (모든 심볼)
 curl http://localhost:8080/api/stocks/info/trades/websocket/latest-memory
 
 # 특정 심볼의 실시간 데이터
 curl "http://localhost:8080/api/stocks/info/trades/websocket/latest-memory?symbol=AAPL"
 
-# 현재 설정된 저장 간격 확인
+# 저장 간격 확인
 curl http://localhost:8080/api/stocks/info/trades/websocket/save-status | jq '.saveInterval'
-
-# 메모리에 있는 총 심볼 수 확인
-curl http://localhost:8080/api/stocks/info/trades/websocket/latest-memory | jq '.totalSymbols'
 ```
 
 ## 🐛 문제 해결
