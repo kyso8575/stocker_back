@@ -129,6 +129,51 @@ public class FinancialMetricsService {
     }
     
     /**
+     * S&P 500 종목들에 대한 기본 재무 지표를 가져와 저장
+     * @param batchSize 배치 크기
+     * @param delayMs API 호출 사이의 지연 시간(밀리초)
+     * @return 성공적으로 저장된 심볼 수
+     */
+    public int fetchAndSaveSp500BasicFinancials(int batchSize, int delayMs) {
+        log.info("💰 Starting S&P 500 financial metrics collection (batch: {}, delay: {}ms)", batchSize, delayMs);
+        
+        // S&P 500 종목들 전체 조회 (프로필 유효성 체크 제거)
+        List<StockSymbol> sp500Symbols = stockSymbolRepository.findByIsSp500True();
+        log.info("📊 Found {} S&P 500 symbols to process", sp500Symbols.size());
+        
+        int totalProcessed = 0;
+        int totalSkipped = 0;
+        int totalBatches = (int) Math.ceil((double) sp500Symbols.size() / batchSize);
+        
+        for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+            int startIndex = batchIndex * batchSize;
+            int endIndex = Math.min(startIndex + batchSize, sp500Symbols.size());
+            List<StockSymbol> batch = sp500Symbols.subList(startIndex, endIndex);
+            
+            log.info("🔄 Processing batch {}/{} ({} symbols)...", 
+                     batchIndex + 1, totalBatches, batch.size());
+            
+            // 배치별로 처리하고 결과를 누적
+            BatchResult result = processBatchWithNewTransaction(batch, delayMs);
+            totalProcessed += result.getProcessedCount();
+            totalSkipped += result.getSkippedCount();
+            
+            log.info("💾 Batch {}/{} completed: ✅{} 📭{} | Total: ✅{} 📭{} ({}/{})", 
+                     batchIndex + 1, totalBatches, 
+                     result.getProcessedCount(), result.getSkippedCount(),
+                     totalProcessed, totalSkipped,
+                     totalProcessed + totalSkipped, sp500Symbols.size());
+        }
+        
+        log.info("🎯 S&P 500 financial metrics collection completed:");
+        log.info("   ✅ Success: {} metrics", totalProcessed);
+        log.info("   📭 Skipped: {} symbols", totalSkipped);
+        log.info("   📊 Total processed: {}/{}", totalProcessed + totalSkipped, sp500Symbols.size());
+        
+        return totalProcessed;
+    }
+    
+    /**
      * 배치 처리 결과를 담는 내부 클래스
      */
     private static class BatchResult {
@@ -165,12 +210,15 @@ public class FinancialMetricsService {
         List<FinancialMetrics> metricsToSave = new ArrayList<>();
         LocalDate today = LocalDate.now();
         
-        for (StockSymbol symbol : batch) {
+        log.debug("🔍 Starting batch processing for {} symbols", batch.size());
+        
+        for (int i = 0; i < batch.size(); i++) {
+            StockSymbol symbol = batch.get(i);
+            
             try {
                 // 오늘 날짜에 이미 지표가 있는지 확인
                 boolean alreadyExists = financialMetricsRepository.existsBySymbolAndCreatedAtDate(symbol.getSymbol(), today);
                 if (alreadyExists) {
-                    log.info("Financial metrics for symbol {} already exist for today, skipping", symbol.getSymbol());
                     batchSkipped++;
                     continue;
                 }
@@ -185,26 +233,26 @@ public class FinancialMetricsService {
                     CompanyProfileDTO profileDTO = companyProfileService.fetchCompanyProfile(symbol.getSymbol());
                     if (profileDTO != null && profileDTO.getMarketCapitalization() != null) {
                         metrics.setMarketCapitalization(profileDTO.getMarketCapitalization());
-                        log.debug("Added market capitalization: {} for symbol: {}", 
-                                 profileDTO.getMarketCapitalization(), symbol.getSymbol());
                     }
                     
                     metricsToSave.add(metrics);
                     batchProcessed++;
-                    log.debug("Successfully fetched financial metrics for symbol: {}", symbol.getSymbol());
                 } else {
                     batchSkipped++;
-                    log.warn("Skipped financial metrics for symbol (no data): {}", symbol.getSymbol());
+                }
+                
+                // 진행 상황 중간 보고 (배치 내에서 매 10개마다)
+                if ((i + 1) % 10 == 0 || (i + 1) == batch.size()) {
+                    log.debug("   📊 Batch progress: {}/{} symbols processed", i + 1, batch.size());
                 }
                 
                 // API 레이트 제한 방지를 위한 지연
-                if (delayMs > 0 && batch.indexOf(symbol) < batch.size() - 1) {
+                if (delayMs > 0 && i < batch.size() - 1) {
                     Thread.sleep(delayMs);
                 }
                 
             } catch (Exception e) {
-                log.error("Error processing financial metrics for symbol {}: {}", 
-                        symbol.getSymbol(), e.getMessage());
+                log.warn("❌ Error processing {}: {}", symbol.getSymbol(), e.getMessage());
                 batchSkipped++;
                 // 다음 심볼 계속 처리
             }
@@ -212,8 +260,9 @@ public class FinancialMetricsService {
         
         // 배치의 모든 데이터를 한번에 저장 (성능 향상)
         if (!metricsToSave.isEmpty()) {
-            log.info("Saving batch of {} financial metrics to database", metricsToSave.size());
+            log.debug("💾 Saving {} financial metrics to database...", metricsToSave.size());
             financialMetricsRepository.saveAll(metricsToSave);
+            log.debug("✅ Successfully saved {} metrics", metricsToSave.size());
         }
         
         return new BatchResult(batchProcessed, batchSkipped);

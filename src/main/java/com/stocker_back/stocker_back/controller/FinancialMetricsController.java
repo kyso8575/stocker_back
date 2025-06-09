@@ -29,13 +29,13 @@ public class FinancialMetricsController {
     /**
      * 모든 주식 심볼에 대한 기본 재무 지표를 Finnhub API에서 가져와 데이터베이스에 저장
      * @param batchSize 한 번에 처리할 주식 수 (기본값: 20)
-     * @param delayMs API 호출 사이의 지연 시간(밀리초) (기본값: 500)
+     * @param delayMs API 호출 사이의 지연 시간(밀리초) (기본값: 0, API 클라이언트에서 rate limit 적용)
      * @return 처리된 재무 지표 수와 성공 여부를 담은 응답
      */
     @PostMapping("/batch")
     public ResponseEntity<Map<String, Object>> fetchAllFinancialMetrics(
             @RequestParam(defaultValue = "20") int batchSize,
-            @RequestParam(defaultValue = "500") int delayMs) {
+            @RequestParam(defaultValue = "0") int delayMs) {
         
         log.info("Received request to fetch financial metrics for all symbols with batchSize={}, delayMs={}", 
                 batchSize, delayMs);
@@ -65,34 +65,34 @@ public class FinancialMetricsController {
      */
     @PostMapping("/{symbol}")
     public ResponseEntity<Map<String, Object>> fetchFinancialMetrics(@PathVariable String symbol) {
-        log.info("Received request to fetch financial metrics for symbol: {}", symbol);
+            log.info("Received request to fetch financial metrics for symbol: {}", symbol);
         
         Map<String, Object> response = new HashMap<>();
-        response.put("symbol", symbol);
-        
-        try {
-            FinancialMetricsResult result = financialMetricsService.fetchAndSaveBasicFinancials(symbol);
+            response.put("symbol", symbol);
             
-            switch (result.getStatus()) {
-                case SUCCESS:
-                    response.put("success", true);
-                    response.put("data", result.getMetrics());
-                    response.put("message", String.format("Successfully fetched financial metrics for %s", symbol));
+            try {
+                FinancialMetricsResult result = financialMetricsService.fetchAndSaveBasicFinancials(symbol);
+                
+                switch (result.getStatus()) {
+                    case SUCCESS:
+                        response.put("success", true);
+                        response.put("data", result.getMetrics());
+                        response.put("message", String.format("Successfully fetched financial metrics for %s", symbol));
                     return ResponseEntity.status(HttpStatus.CREATED).body(response);
-                case SKIPPED:
-                    response.put("success", true);
-                    response.put("message", result.getMessage());
+                    case SKIPPED:
+                        response.put("success", true);
+                        response.put("message", result.getMessage());
                     return ResponseEntity.ok(response);
-                case NO_DATA:
-                    response.put("success", false);
-                    response.put("message", result.getMessage());
+                    case NO_DATA:
+                        response.put("success", false);
+                        response.put("message", result.getMessage());
                     return ResponseEntity.ok(response);
-                case ERROR:
-                    response.put("success", false);
-                    response.put("error", result.getMessage());
+                    case ERROR:
+                        response.put("success", false);
+                        response.put("error", result.getMessage());
                     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
                 default:
-                    response.put("success", false);
+                response.put("success", false);
                     response.put("error", "Unknown status");
                     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
             }
@@ -250,6 +250,38 @@ public class FinancialMetricsController {
             return isStartOfDay ? 
                 LocalDateTime.now().minusYears(1) : 
                 LocalDateTime.now();
+        }
+    }
+
+    /**
+     * S&P 500 종목들에 대한 기본 재무 지표를 Finnhub API에서 가져와 데이터베이스에 저장
+     * @param batchSize 한 번에 처리할 주식 수 (기본값: 20)
+     * @param delayMs API 호출 사이의 지연 시간(밀리초) (기본값: 0, API 클라이언트에서 rate limit 적용)
+     * @return 처리된 재무 지표 수와 성공 여부를 담은 응답
+     */
+    @PostMapping("/sp500")
+    public ResponseEntity<Map<String, Object>> fetchSp500FinancialMetrics(
+            @RequestParam(defaultValue = "20") int batchSize,
+            @RequestParam(defaultValue = "0") int delayMs) {
+        
+        log.info("Received request to fetch financial metrics for S&P 500 symbols with batchSize={}, delayMs={}", 
+                batchSize, delayMs);
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            int savedCount = financialMetricsService.fetchAndSaveSp500BasicFinancials(batchSize, delayMs);
+            
+            response.put("success", true);
+            response.put("processedCount", savedCount);
+            response.put("message", String.format("Successfully processed financial metrics for %d S&P 500 symbols", savedCount));
+            
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (Exception e) {
+            log.error("Error fetching S&P 500 financial metrics: {}", e.getMessage());
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
 } 

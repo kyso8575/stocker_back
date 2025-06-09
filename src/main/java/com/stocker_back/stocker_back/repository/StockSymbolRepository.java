@@ -35,6 +35,18 @@ public interface StockSymbolRepository extends JpaRepository<StockSymbol, Long> 
     // 빈 프로필이 아닌(유효한 데이터가 있는) 심볼 목록 가져오기
     List<StockSymbol> findByProfileEmptyFalse();
     
+    // S&P 500 종목들 조회
+    List<StockSymbol> findByIsSp500True();
+    
+    // S&P 500이면서 빈 프로필이 아닌(유효한 데이터가 있는) 심볼 목록 가져오기
+    List<StockSymbol> findByIsSp500TrueAndProfileEmptyFalse();
+    
+    // S&P 500이면서 빈 프로필이 아닌 심볼 수
+    long countByIsSp500TrueAndProfileEmptyFalse();
+    
+    // S&P 500이면서 빈 프로필인 심볼 수
+    long countByIsSp500TrueAndProfileEmptyTrue();
+    
     /**
      * 모든 심볼의 S&P 500 상태를 false로 초기화
      */

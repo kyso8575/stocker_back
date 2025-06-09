@@ -20,12 +20,13 @@ import java.util.concurrent.TimeUnit;
  * 미국 주식 시장 시간 기반 WebSocket 연결 관리 서비스
  * 
  * 주요 기능:
- * - 매분마다 미국 시장 시간 체크 
- * - 시장 개장시 자동 WebSocket 연결
+ * - 시장 개장 30분 전 (9:00 AM ET): WebSocket 연결 및 구독 완료
+ * - 시장 개장 시간 (9:30 AM ET): 데이터 저장 시작
+ * - 시장 마감 후 (4:00 PM ET): WebSocket 연결 해제
  * - 설정 가능한 간격으로 연결 상태 모니터링
- * - 시장 마감시 자동 WebSocket 해제
  * 
  * 시장 시간: 9:30 AM - 4:00 PM ET (월-금)
+ * 준비 시간: 9:00 AM - 9:30 AM ET (연결/구독 완료)
  */
 @Slf4j
 @Service
@@ -41,7 +42,9 @@ public class ScheduledWebSocketService {
     private long monitorIntervalMs;
     
     private volatile boolean isMarketHours = false;
+    private volatile boolean isPreMarketSetup = false; // 시장 전 준비 시간
     private volatile boolean isConnected = false;
+    private volatile boolean isDataSavingActive = false; // 데이터 저장 활성화 상태
     private ScheduledExecutorService monitoringScheduler;
     
     @PostConstruct
@@ -49,7 +52,9 @@ public class ScheduledWebSocketService {
         this.monitoringScheduler = Executors.newScheduledThreadPool(1);
         
         log.info("🔧 ScheduledWebSocketService initialized");
-        log.info("⏰ Market hours check: every 60 seconds");
+        log.info("⏰ Pre-market setup: 9:00 AM ET (connection & subscription)");
+        log.info("⏰ Market hours data saving: 9:30 AM - 4:00 PM ET");
+        log.info("⏰ Market status check: every 60 seconds");
         log.info("⏰ Connection monitoring: every {} ms", monitorIntervalMs);
         
         // 설정 가능한 간격으로 모니터링 시작
@@ -62,7 +67,7 @@ public class ScheduledWebSocketService {
     }
     
     /**
-     * 미국 주식 시장 시간 확인 (매분마다 체크)
+     * 미국 주식 시장 시간 확인 및 상태 관리 (매분마다 체크)
      */
     @Scheduled(fixedRate = 60000) // 1분마다 실행
     public void checkMarketHours() {
@@ -70,54 +75,88 @@ public class ScheduledWebSocketService {
             return;
         }
         
+        boolean currentPreMarketStatus = isPreMarketSetupTime();
         boolean currentMarketStatus = isUSMarketOpen();
         
-        if (currentMarketStatus != isMarketHours) {
-            isMarketHours = currentMarketStatus;
+        // 1. Pre-market setup 시간 (9:00 AM ET) - 연결 및 구독
+        if (currentPreMarketStatus && !isPreMarketSetup) {
+            isPreMarketSetup = true;
+            log.info("🟡 PRE-MARKET SETUP TIME - Starting WebSocket connections and subscriptions");
+            connectAndSubscribeWebSocket();
             
-            if (isMarketHours) {
-                log.info("🟢 US Market OPENED - Starting WebSocket connections");
-                connectWebSocket();
-            } else {
-                log.info("🔴 US Market CLOSED - Stopping WebSocket connections");
-                disconnectWebSocket();
-            }
+        // 2. Market open 시간 (9:30 AM ET) - 데이터 저장 시작  
+        } else if (currentMarketStatus && !isMarketHours) {
+            isMarketHours = true;
+            log.info("🟢 US MARKET OPENED - Starting data saving (connections should already be ready)");
+            startDataSaving();
+            
+        // 3. Market close 시간 (4:00 PM ET) - 저장 중단 및 연결 해제
+        } else if (!currentMarketStatus && isMarketHours) {
+            isMarketHours = false;
+            isPreMarketSetup = false;
+            log.info("🔴 US MARKET CLOSED - Stopping data saving and disconnecting WebSocket");
+            stopDataSavingAndDisconnect();
         }
     }
     
     /**
-     * 설정 가능한 간격으로 WebSocket 연결 상태 확인 및 재연결 (시장 시간에만)
+     * 설정 가능한 간격으로 WebSocket 연결 상태 확인 및 재연결
      */
     public void monitorWebSocketConnection() {
-        if (!scheduledWebSocketEnabled || !isMarketHours) {
+        if (!scheduledWebSocketEnabled) {
+            return;
+        }
+        
+        // Pre-market이나 market 시간에만 모니터링
+        if (!isPreMarketSetup && !isMarketHours) {
             return;
         }
         
         boolean actuallyConnected = multiKeyWebSocketService.isAnyConnected();
         
         if (!actuallyConnected && isConnected) {
-            log.warn("⚠️ WebSocket connection lost during market hours - attempting reconnection");
-            connectWebSocket();
+            log.warn("⚠️ WebSocket connection lost during market/pre-market hours - attempting reconnection");
+            connectAndSubscribeWebSocket();
         } else if (actuallyConnected && !isConnected) {
             log.info("✅ WebSocket connection restored");
             isConnected = true;
         }
         
-        // 설정된 간격마다 연결 상태 로깅 (디버그용)
+        // 연결 상태 로깅 (디버그용)
         if (actuallyConnected) {
-            log.debug("📡 WebSocket monitoring: Connected and active (interval: {}ms, market hours: {})", 
-                    monitorIntervalMs, isMarketHours);
+            log.debug("📡 WebSocket monitoring: Connected (pre-market: {}, market: {}, data saving: {})", 
+                    isPreMarketSetup, isMarketHours, isDataSavingActive);
         } else {
-            log.warn("❌ WebSocket monitoring: Not connected during market hours");
+            log.warn("❌ WebSocket monitoring: Not connected during active hours");
         }
     }
     
     /**
-     * 미국 주식 시장 개장 시간 확인
+     * Pre-market setup 시간인지 확인 (9:00 AM - 9:30 AM ET)
+     * @return true if it's pre-market setup time
+     */
+    private boolean isPreMarketSetupTime() {
+        ZonedDateTime nowET = ZonedDateTime.now(ZoneId.of("America/New_York"));
+        DayOfWeek dayOfWeek = nowET.getDayOfWeek();
+        LocalTime timeET = nowET.toLocalTime();
+        
+        // 주말 제외
+        if (dayOfWeek == DayOfWeek.SATURDAY || dayOfWeek == DayOfWeek.SUNDAY) {
+            return false;
+        }
+        
+        // Pre-market setup 시간: 9:00 AM - 9:30 AM ET
+        LocalTime preMarketStart = LocalTime.of(9, 0);
+        LocalTime marketOpen = LocalTime.of(9, 30);
+        
+        return (timeET.equals(preMarketStart) || timeET.isAfter(preMarketStart)) && timeET.isBefore(marketOpen);
+    }
+    
+    /**
+     * 미국 주식 시장 개장 시간 확인 (9:30 AM - 4:00 PM ET)
      * @return true if US market is open
      */
     private boolean isUSMarketOpen() {
-        // 미국 동부 시간 (EST/EDT)
         ZonedDateTime nowET = ZonedDateTime.now(ZoneId.of("America/New_York"));
         DayOfWeek dayOfWeek = nowET.getDayOfWeek();
         LocalTime timeET = nowET.toLocalTime();
@@ -135,22 +174,23 @@ public class ScheduledWebSocketService {
     }
     
     /**
-     * WebSocket 연결 시작
+     * WebSocket 연결 및 구독 시작 (Pre-market setup 시간)
      */
-    private void connectWebSocket() {
+    private void connectAndSubscribeWebSocket() {
         try {
             if (!multiKeyWebSocketService.isAnyConnected()) {
-                log.info("🔌 Connecting to Finnhub WebSocket for market hours data collection");
+                log.info("🔌 Connecting to Finnhub WebSocket for pre-market setup");
                 multiKeyWebSocketService.connectAll();
-                isConnected = true;
                 
-                // 연결 확인을 위한 짧은 지연
-                Thread.sleep(3000);
+                // 연결 및 구독 완료 확인을 위한 대기
+                Thread.sleep(5000);
                 
                 if (multiKeyWebSocketService.isAnyConnected()) {
-                    log.info("✅ WebSocket connections established successfully");
+                    log.info("✅ WebSocket connections and subscriptions established successfully");
+                    log.info("📡 Ready for market open at 9:30 AM ET");
+                    isConnected = true;
                 } else {
-                    log.error("❌ Failed to establish WebSocket connections");
+                    log.error("❌ Failed to establish WebSocket connections during pre-market setup");
                     isConnected = false;
                 }
             } else {
@@ -158,16 +198,44 @@ public class ScheduledWebSocketService {
                 isConnected = true;
             }
         } catch (Exception e) {
-            log.error("❌ Error connecting WebSocket", e);
+            log.error("❌ Error during pre-market WebSocket setup", e);
             isConnected = false;
         }
     }
     
     /**
-     * WebSocket 연결 종료
+     * 데이터 저장 시작 (Market open 시간)
      */
-    private void disconnectWebSocket() {
+    private void startDataSaving() {
         try {
+            if (multiKeyWebSocketService.isAnyConnected()) {
+                // WebSocket 서비스에 데이터 저장 활성화 신호
+                multiKeyWebSocketService.setDataSavingEnabled(true);
+                isDataSavingActive = true;
+                log.info("💾 Data saving activated - market is now open");
+            } else {
+                log.error("❌ Cannot start data saving - WebSocket not connected");
+                // 긴급 연결 시도
+                connectAndSubscribeWebSocket();
+            }
+        } catch (Exception e) {
+            log.error("❌ Error starting data saving", e);
+        }
+    }
+    
+    /**
+     * 데이터 저장 중단 및 WebSocket 연결 해제 (Market close 시간)
+     */
+    private void stopDataSavingAndDisconnect() {
+        try {
+            // 데이터 저장 중단
+            if (isDataSavingActive) {
+                multiKeyWebSocketService.setDataSavingEnabled(false);
+                isDataSavingActive = false;
+                log.info("💾 Data saving stopped - market is now closed");
+            }
+            
+            // WebSocket 연결 해제
             if (multiKeyWebSocketService.isAnyConnected()) {
                 log.info("🔌 Disconnecting WebSocket connections (market closed)");
                 multiKeyWebSocketService.disconnectAll();
@@ -178,8 +246,9 @@ public class ScheduledWebSocketService {
                 isConnected = false;
             }
         } catch (Exception e) {
-            log.error("❌ Error disconnecting WebSocket", e);
+            log.error("❌ Error during market close cleanup", e);
             isConnected = false;
+            isDataSavingActive = false;
         }
     }
     
@@ -190,6 +259,20 @@ public class ScheduledWebSocketService {
      */
     public boolean isMarketHours() {
         return isMarketHours;
+    }
+    
+    /**
+     * 현재 Pre-market setup 상태 조회
+     */
+    public boolean isPreMarketSetup() {
+        return isPreMarketSetup;
+    }
+    
+    /**
+     * 현재 데이터 저장 상태 조회
+     */
+    public boolean isDataSavingActive() {
+        return isDataSavingActive;
     }
     
     /**
@@ -207,7 +290,7 @@ public class ScheduledWebSocketService {
         log.info("📋 Scheduled WebSocket service {}", enabled ? "enabled" : "disabled");
         
         if (!enabled && isConnected) {
-            disconnectWebSocket();
+            stopDataSavingAndDisconnect();
         }
     }
     
@@ -226,12 +309,19 @@ public class ScheduledWebSocketService {
     }
     
     /**
-     * 다음 시장 개장/마감 시간 정보
+     * 다음 시장 이벤트 시간 정보
      */
     public String getNextMarketEvent() {
         ZonedDateTime nowET = ZonedDateTime.now(ZoneId.of("America/New_York"));
         
-        if (isUSMarketOpen()) {
+        if (isPreMarketSetup) {
+            // Pre-market setup 중이면 시장 개장 시간
+            ZonedDateTime marketOpen = nowET.toLocalDate().atTime(9, 30).atZone(ZoneId.of("America/New_York"));
+            if (nowET.isAfter(marketOpen)) {
+                marketOpen = marketOpen.plusDays(1);
+            }
+            return "Market opens at: " + marketOpen.toString();
+        } else if (isMarketHours) {
             // 시장이 열려있으면 마감 시간
             ZonedDateTime marketClose = nowET.toLocalDate().atTime(16, 0).atZone(ZoneId.of("America/New_York"));
             if (nowET.isAfter(marketClose)) {
@@ -239,23 +329,24 @@ public class ScheduledWebSocketService {
             }
             return "Market closes at: " + marketClose.toString();
         } else {
-            // 시장이 닫혀있으면 개장 시간
-            ZonedDateTime marketOpen = nowET.toLocalDate().atTime(9, 30).atZone(ZoneId.of("America/New_York"));
-            if (nowET.isAfter(marketOpen)) {
-                marketOpen = marketOpen.plusDays(1);
+            // 시장이 닫혀있으면 다음 pre-market setup 시간
+            ZonedDateTime preMarketSetup = nowET.toLocalDate().atTime(9, 0).atZone(ZoneId.of("America/New_York"));
+            if (nowET.isAfter(preMarketSetup)) {
+                preMarketSetup = preMarketSetup.plusDays(1);
             }
             // 주말 건너뛰기
-            while (marketOpen.getDayOfWeek() == DayOfWeek.SATURDAY || marketOpen.getDayOfWeek() == DayOfWeek.SUNDAY) {
-                marketOpen = marketOpen.plusDays(1);
+            while (preMarketSetup.getDayOfWeek() == DayOfWeek.SATURDAY || preMarketSetup.getDayOfWeek() == DayOfWeek.SUNDAY) {
+                preMarketSetup = preMarketSetup.plusDays(1);
             }
-            return "Market opens at: " + marketOpen.toString();
+            return "Pre-market setup starts at: " + preMarketSetup.toString();
         }
     }
 
     @PreDestroy
     public void cleanup() {
-        // 서비스 종료 시 스케줄러를 정리하는 로직을 구현해야 합니다.
         log.info("🧹 Cleaning up ScheduledWebSocketService");
-        monitoringScheduler.shutdownNow();
+        if (monitoringScheduler != null) {
+            monitoringScheduler.shutdownNow();
+        }
     }
 } 
