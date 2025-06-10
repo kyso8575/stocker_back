@@ -26,12 +26,7 @@ public class SecurityConfig {
             .formLogin(form -> form.disable()) // Disable default form login
             .httpBasic(basic -> basic.disable()) // Disable HTTP Basic auth
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
-                .requestMatchers("/api/auth/check-username", "/api/auth/check-email").permitAll()
-                .requestMatchers("/api/auth/me").permitAll() // Allow current user info access
-                .requestMatchers("/api/auth/logout").permitAll() // Allow logout for now
-                .requestMatchers("/api/auth/session-info").permitAll() // Allow session info access
-                .anyRequest().authenticated()
+                .anyRequest().permitAll() // Allow all requests, authentication will be handled by interceptor
             )
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
@@ -39,7 +34,6 @@ public class SecurityConfig {
                 .maxSessionsPreventsLogin(false) // 새로운 로그인이 기존 세션을 만료시킴
                 .and()
                 .sessionFixation().changeSessionId() // 세션 고정 공격 방지
-                .invalidSessionUrl("/api/auth/login") // 무효한 세션 접근 시 리다이렉트
             )
             .headers(headers -> headers
                 .frameOptions().deny() // 클릭재킹 방지
