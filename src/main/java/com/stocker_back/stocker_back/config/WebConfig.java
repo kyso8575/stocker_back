@@ -20,7 +20,7 @@ public class WebConfig implements WebMvcConfigurer {
                     "/api/auth/login",
                     "/api/auth/check-username",
                     "/api/auth/check-email",
-                    "/api/auth/session-info"
+                    "/api/dev/**" // 개발용 엔드포인트 제외
                 ); // 공개 API는 제외
     }
 } 

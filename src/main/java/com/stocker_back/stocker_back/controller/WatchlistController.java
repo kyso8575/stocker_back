@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/watchlist")
+@RequestMapping("/api/stocks/watchlist")
 @RequiredArgsConstructor
 @Slf4j
 public class WatchlistController {

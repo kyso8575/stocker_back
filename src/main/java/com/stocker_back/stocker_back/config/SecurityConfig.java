@@ -30,9 +30,6 @@ public class SecurityConfig {
             )
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                .maximumSessions(1) // 최대 1개 세션만 허용
-                .maxSessionsPreventsLogin(false) // 새로운 로그인이 기존 세션을 만료시킴
-                .and()
                 .sessionFixation().changeSessionId() // 세션 고정 공격 방지
             )
             .headers(headers -> headers

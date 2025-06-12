@@ -4,7 +4,7 @@ import com.stocker_back.stocker_back.domain.User;
 import com.stocker_back.stocker_back.dto.UserRegistrationDto;
 import com.stocker_back.stocker_back.dto.UserLoginDto;
 import com.stocker_back.stocker_back.service.UserService;
-import com.stocker_back.stocker_back.service.SessionManagementService;
+import com.stocker_back.stocker_back.service.SessionManagerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -24,7 +24,7 @@ import java.util.Map;
 public class AuthController {
     
     private final UserService userService;
-    private final SessionManagementService sessionManagementService;
+    private final SessionManagerService sessionManagerService;
     
     /**
      * User registration API
@@ -47,8 +47,11 @@ public class AuthController {
                 ));
             }
             
-            // Process registration (with current session ID for session management)
-            User user = userService.registerUser(registrationDto, session.getId());
+            // Process registration
+            User user = userService.registerUser(registrationDto);
+            
+            // 중복 로그인 관리: 회원가입 후 자동 로그인 시에도 기존 세션 무효화
+            sessionManagerService.registerUserSession(user.getId(), session.getId());
             
             // Save user info to session (auto login) - 메모리 최적화: 필수 정보만 저장
             session.setAttribute("userId", user.getId());
@@ -56,7 +59,7 @@ public class AuthController {
             session.setAttribute("userEmail", user.getEmail());
             session.setAttribute("userFullName", user.getFullName());
             
-            log.info("Registration successful and auto login: userId={}, username={}, sessionId={}", 
+            log.info("Registration successful and auto login with session management: userId={}, username={}, sessionId={}", 
                     user.getId(), user.getUsername(), session.getId());
             
             return ResponseEntity.ok(Map.of(
@@ -86,7 +89,7 @@ public class AuthController {
     }
     
     /**
-     * User login API
+     * User login API with duplicate login management
      */
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody UserLoginDto loginDto,
@@ -106,8 +109,11 @@ public class AuthController {
                 ));
             }
             
-            // Process login (with current session ID for session management)
-            User user = userService.loginUser(loginDto, session.getId());
+            // Process login
+            User user = userService.loginUser(loginDto);
+            
+            // 중복 로그인 관리: 기존 세션 무효화 및 새 세션 등록
+            sessionManagerService.registerUserSession(user.getId(), session.getId());
             
             // Save user info to session - 메모리 최적화: 필수 정보만 저장
             session.setAttribute("userId", user.getId());
@@ -115,7 +121,7 @@ public class AuthController {
             session.setAttribute("userEmail", user.getEmail());
             session.setAttribute("userFullName", user.getFullName());
             
-            log.info("Login successful: userId={}, username={}, sessionId={}", 
+            log.info("Login successful with duplicate login management: userId={}, username={}, sessionId={}", 
                     user.getId(), user.getUsername(), session.getId());
             
             return ResponseEntity.ok(Map.of(
@@ -145,7 +151,7 @@ public class AuthController {
     }
     
     /**
-     * User logout API
+     * User logout API with session cleanup
      */
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpSession session) {
@@ -163,10 +169,13 @@ public class AuthController {
             
             String sessionId = session.getId();
             
+            // 세션 관리자에서 사용자 세션 제거
+            sessionManagerService.removeUserSession(userId);
+            
             // Invalidate session
             session.invalidate();
             
-            log.info("Logout successful: username={}, sessionId={}", username, sessionId);
+            log.info("Logout successful with session cleanup: username={}, sessionId={}", username, sessionId);
             
             return ResponseEntity.ok(Map.of(
                 "success", true,
@@ -259,36 +268,31 @@ public class AuthController {
     }
     
     /**
-     * Get session information for current user
+     * 관리자용: 특정 사용자 강제 로그아웃 API
      */
-    @GetMapping("/session-info")
-    public ResponseEntity<?> getSessionInfo(HttpSession session) {
+    @PostMapping("/admin/force-logout/{targetUserId}")
+    public ResponseEntity<?> forceLogoutUser(@PathVariable Long targetUserId, HttpSession session) {
         try {
-            Long userId = (Long) session.getAttribute("userId");
-            String username = (String) session.getAttribute("username");
-            
-            if (userId == null) {
+            Long adminUserId = (Long) session.getAttribute("userId");
+            if (adminUserId == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
                     "success", false,
                     "message", "Authentication required"
                 ));
             }
             
-            int activeSessionCount = sessionManagementService.getActiveSessionCount(userId);
-            var sessionInfoList = sessionManagementService.getUserSessionInfo(userId);
+            // 관리자 권한 확인은 AuthenticationInterceptor에서 처리됨
+            sessionManagerService.forceLogoutUser(targetUserId);
+            
+            log.info("Admin {} forced logout for user: {}", adminUserId, targetUserId);
             
             return ResponseEntity.ok(Map.of(
                 "success", true,
-                "sessionInfo", Map.of(
-                    "currentSessionId", session.getId(),
-                    "userId", userId,
-                    "username", username,
-                    "activeSessionCount", activeSessionCount,
-                    "sessionDetails", sessionInfoList
-                )
+                "message", "User " + targetUserId + " has been forcefully logged out"
             ));
+            
         } catch (Exception e) {
-            log.error("Error retrieving session info", e);
+            log.error("Error during force logout", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
                 "success", false,
                 "message", "A server error occurred"
