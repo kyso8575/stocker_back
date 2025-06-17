@@ -8,6 +8,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -20,16 +26,27 @@ import java.util.Map;
 @RequestMapping("/api/scheduler")
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "Scheduler", description = "자동화된 데이터 수집 스케줄러 관리 API")
 public class SchedulerController {
 
     private final FinancialMetricsSchedulerService financialMetricsSchedulerService;
     private final MonthlyDataSchedulerService monthlyDataSchedulerService;
     private final ScheduledWebSocketService webSocketSchedulerService;
 
-    /**
-     * 통합 스케줄러 상태 조회 (Health + Financial Metrics + Monthly Data + WebSocket + Config)
-     * @return 모든 스케줄러 정보 통합
-     */
+    @Operation(
+        summary = "통합 스케줄러 상태 조회",
+        description = "모든 자동화된 스케줄러(재무 지표, 월간 데이터, 웹소켓)의 상태와 설정을 조회합니다."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "스케줄러 상태 조회 성공",
+            content = @Content(schema = @Schema(implementation = Map.class))
+        ),
+        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getSchedulerStatus() {
         log.info("Received request to get comprehensive scheduler status");

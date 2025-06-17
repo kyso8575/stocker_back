@@ -116,8 +116,8 @@ finnhub.api.key.1=your_finnhub_api_key
 | 메서드 | 엔드포인트 | 설명 |
 |--------|-----------|------|
 | `GET` | `/api/stocks/trades/websocket/status` | 연결 상태 확인 |
-| `POST` | `/api/stocks/trades/websocket/connect` | 연결 시작 |
-| `POST` | `/api/stocks/trades/websocket/disconnect` | 연결 해제 |
+| `POST` | `/api/stocks/trades/websocket/admin/connect` | 연결 시작 |
+| `POST` | `/api/stocks/trades/websocket/admin/disconnect` | 연결 해제 |
 
 ### 🤖 자동 스케줄러 관리 (NEW!)
 | 메서드 | 엔드포인트 | 설명 |
@@ -242,7 +242,7 @@ curl -X POST "http://localhost:8080/api/stocks/company-profiles/sp500?batchSize=
 curl "http://localhost:8080/api/stocks/trades/websocket/status"
 
 # 연결 시작
-curl -X POST "http://localhost:8080/api/stocks/trades/websocket/connect"
+curl -X POST "http://localhost:8080/api/stocks/trades/websocket/admin/connect"
 ```
 
 ## 📊 응답 형식
@@ -312,8 +312,8 @@ curl -X POST "http://localhost:8080/api/stocks/trades/websocket/connect"
 - **Current Price**: `/api/stocks/trades/{symbol}/price` (GET) - Get current price for symbol
 - **Trade History**: `/api/stocks/trades/history` (GET) - Get trade history with filters
 - **WebSocket Status**: `/api/stocks/trades/websocket/status` (GET) - Check WebSocket connection status
-- **Connect WebSocket**: `/api/stocks/trades/websocket/connect` (POST) - Start real-time data collection
-- **Disconnect WebSocket**: `/api/stocks/trades/websocket/disconnect` (POST) - Stop real-time data collection
+- **Connect WebSocket**: `/api/stocks/trades/websocket/admin/connect` (POST) - Start real-time data collection
+- **Disconnect WebSocket**: `/api/stocks/trades/websocket/admin/disconnect` (POST) - Stop real-time data collection
 
 ### News & Market Data (2 endpoints)
 - **Company News**: `/api/stocks/news/companies/{symbol}` (GET) - Get company-specific news
@@ -421,3 +421,56 @@ curl http://localhost:8080/api/scheduler/status
 - **Finnhub API Compliance**: Proper 60 requests/minute implementation
 - **API Client Enhancement**: Built-in 1000ms intervals between requests
 - **Controller Optimization**: Removed redundant delays (0ms defaults)
+
+## API 엔드포인트 구조
+
+### 일반 사용자 접근 가능한 엔드포인트 (GET)
+
+#### 재무 지표 API
+- `GET /api/financial-metrics/{symbol}` - 특정 주식의 최신 재무 지표 조회
+- `GET /api/financial-metrics/{symbol}/history` - 특정 주식의 재무 지표 기록 조회 (선택적 날짜 범위 필터링)
+
+#### 회사 프로필 API
+- `GET /api/company-profiles/{symbol}` - 특정 주식의 회사 프로필 정보 조회
+
+#### 주식 심볼 API
+- `GET /api/symbols/{symbol}` - 특정 주식 심볼 정보 조회
+
+#### S&P 500 API
+- `GET /api/sp500` - S&P 500 목록 조회
+
+### 관리자 전용 엔드포인트 (POST)
+
+#### 재무 지표 관리 API
+- `POST /api/admin/data/financial-metrics/{symbol}` - 특정 주식의 재무 지표 수집
+- `POST /api/admin/data/financial-metrics/batch` - 여러 주식의 재무 지표 일괄 수집
+- `POST /api/sp500/update` - S&P 500 종목들의 재무 지표 일괄 수집
+
+#### 회사 프로필 관리 API
+- `POST /api/admin/data/company-profiles/{symbol}` - 특정 주식의 회사 프로필 수집
+- `POST /api/admin/data/company-profiles/batch` - 여러 주식의 회사 프로필 일괄 수집
+- `POST /api/sp500/update` - S&P 500 종목들의 회사 프로필 일괄 수집
+
+#### 주식 심볼 관리 API
+- `POST /api/admin/data/symbols/{symbol}` - 새로운 주식 심볼 추가
+- `POST /api/admin/data/symbols/batch` - 여러 주식 심볼 일괄 추가
+
+### 인증 관련 API
+- `POST /api/auth/register` - 회원가입
+- `POST /api/auth/login` - 로그인
+- `POST /api/auth/logout` - 로그아웃
+- `GET /api/auth/check-username` - 사용자명 중복 확인
+- `GET /api/auth/check-email` - 이메일 중복 확인
+- `GET /api/auth/me` - 현재 로그인한 사용자 정보 조회
+
+### 관심 종목 API
+- `GET /api/stocks/watchlist` - 관심 종목 목록 조회
+- `POST /api/stocks/watchlist` - 관심 종목 추가
+- `DELETE /api/stocks/watchlist/{symbol}` - 관심 종목 삭제
+- `GET /api/stocks/watchlist/count` - 관심 종목 개수 조회
+
+### 관리자 전용 시스템 API
+- `GET /api/admin/system/status` - 시스템 상태 조회
+- `POST /api/admin/auth/force-logout/{targetUserId}` - 특정 사용자 강제 로그아웃
+
+## 기술 스택

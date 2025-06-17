@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/stocks/watchlist")
+@RequestMapping("/api/watchlist")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Watchlist", description = "관심 종목 관리 API")
@@ -89,7 +89,7 @@ public class WatchlistController {
     public ResponseEntity<?> addToWatchlist(
         @Parameter(description = "추가할 주식 정보", required = true)
         @Valid @RequestBody WatchlistRequestDto requestDto,
-        BindingResult bindingResult,
+                                          BindingResult bindingResult,
         HttpServletRequest request
     ) {
         try {

@@ -150,14 +150,13 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
      */
     private boolean requiresAdminRole(String requestURI) {
         String[] adminPaths = {
-            "/api/admin",
-            "/api/data-collection",
-            "/api/system",
-            "/api/users/manage",
-            "/api/websocket/control",
-            "/api/database/admin",
-            "/api/auth/admin"  // 관리자용 세션 관리 엔드포인트 추가
-            // 필요에 따라 관리자 전용 경로 추가
+            "/api/admin",           // 모든 관리자 API의 기본 경로
+            "/api/admin/data",      // 데이터 수집/수정 API
+            "/api/admin/system",    // 시스템 관리
+            "/api/admin/users",     // 사용자 관리
+            "/api/admin/websocket", // 웹소켓 제어
+            "/api/admin/database",  // 데이터베이스 관리
+            "/api/auth/admin"       // 관리자용 세션 관리
         };
         
         for (String path : adminPaths) {
