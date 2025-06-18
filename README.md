@@ -107,17 +107,17 @@ finnhub.api.key.1=your_finnhub_api_key
 ### 🔧 실시간 거래 데이터
 | 메서드 | 엔드포인트 | 설명 |
 |--------|-----------|------|
-| `GET` | `/api/stocks/trades/latest/{symbol}` | 최신 거래 데이터 |
-| `GET` | `/api/stocks/trades/{symbol}/price` | 최신 가격 |
-| `GET` | `/api/stocks/trades/history` | 거래 이력 (시간 범위) |
-| `GET` | `/api/stocks/trades/stream/{symbol}` | 실시간 SSE 스트리밍 |
+| `GET` | `/api/trades/latest/{symbol}` | 최신 거래 데이터 |
+| `GET` | `/api/trades/{symbol}/price` | 최신 가격 |
+| `GET` | `/api/trades/history` | 거래 이력 (시간 범위) |
+| `GET` | `/api/trades/stream/{symbol}` | 실시간 SSE 스트리밍 |
 
 ### 🔌 WebSocket 관리
 | 메서드 | 엔드포인트 | 설명 |
 |--------|-----------|------|
-| `GET` | `/api/stocks/trades/websocket/status` | 연결 상태 확인 |
-| `POST` | `/api/stocks/trades/websocket/admin/connect` | 연결 시작 |
-| `POST` | `/api/stocks/trades/websocket/admin/disconnect` | 연결 해제 |
+| `GET` | `/api/trades/websocket/status` | 연결 상태 확인 |
+| `POST` | `/api/trades/websocket/admin/connect` | 연결 시작 |
+| `POST` | `/api/trades/websocket/admin/disconnect` | 연결 해제 |
 
 ### 🤖 자동 스케줄러 관리 (NEW!)
 | 메서드 | 엔드포인트 | 설명 |
@@ -127,24 +127,24 @@ finnhub.api.key.1=your_finnhub_api_key
 ### 📊 주식 데이터 관리
 | 메서드 | 엔드포인트 | 설명 | 변경사항 |
 |--------|-----------|------|----------|
-| `POST` | `/api/stocks/symbols/batch` | 모든 주식 심볼 수집 | |
-| `POST` | `/api/stocks/symbols/{symbol}` | 특정 심볼 수집 | |
-| `POST` | `/api/stocks/financial-metrics/batch` | 재무지표 배치 수집 | 🔄 delayMs 기본값: 500ms → 0ms |
-| `POST` | `/api/stocks/financial-metrics/sp500` | S&P 500 재무지표 수집 | 🔄 delayMs 기본값: 500ms → 0ms |
-| `POST` | `/api/stocks/financial-metrics/{symbol}` | 재무지표 개별 수집 | |
-| `GET` | `/api/stocks/financial-metrics/{symbol}` | 재무지표 조회 | |
-| `POST` | `/api/stocks/company-profiles/batch` | 회사프로필 배치 수집 | 🔄 delayMs 기본값: 500ms → 0ms |
-| `POST` | `/api/stocks/company-profiles/sp500` | S&P 500 회사프로필 수집 | 🔄 delayMs 기본값: 500ms → 0ms |
-| `POST` | `/api/stocks/company-profiles/{symbol}` | 회사프로필 개별 수집 | |
-| `GET` | `/api/stocks/company-profiles/{symbol}` | 회사프로필 조회 | |
+| `POST` | `/api/symbols/batch` | 모든 주식 심볼 수집 | |
+| `POST` | `/api/symbols/{symbol}` | 특정 심볼 수집 | |
+| `POST` | `/api/financial-metrics/admin/batch` | 모든 심볼 재무지표 배치 수집 | 🔄 delayMs 기본값: 500ms → 0ms |
+| `POST` | `/api/financial-metrics/admin/sp500` | S&P 500 재무지표 수집 | 🔄 delayMs 기본값: 500ms → 0ms |
+| `GET` | `/api/financial-metrics/{symbol}` | 재무지표 조회 | |
+| `GET` | `/api/financial-metrics/sp500` | S&P 500 재무지표 조회 (오늘 또는 최근) | |
+| `POST` | `/api/company-profiles/admin/batch` | 회사프로필 배치 수집 | 🔄 delayMs 기본값: 500ms → 0ms |
+| `POST` | `/api/company-profiles/admin/sp500` | S&P 500 회사프로필 수집 | 🔄 delayMs 기본값: 500ms → 0ms |
+| `POST` | `/api/company-profiles/admin/symbol/{symbol}` | 회사프로필 개별 수집 | |
+| `GET` | `/api/company-profiles/{symbol}` | 회사프로필 조회 | |
 
 ### 📰 뉴스 & 기타
 | 메서드 | 엔드포인트 | 설명 |
 |--------|-----------|------|
-| `GET` | `/api/stocks/news/companies/{symbol}` | 회사 뉴스 |
-| `GET` | `/api/stocks/news/market` | 시장 뉴스 |
-| `POST` | `/api/stocks/update/sp500` | S&P 500 목록 업데이트 |
-| `GET` | `/api/stocks/sp500` | S&P 500 목록 조회 |
+| `GET` | `/api/news/companies/{symbol}` | 회사 뉴스 |
+| `GET` | `/api/news/market` | 시장 뉴스 |
+| `POST` | `/api/sp500/update` | S&P 500 목록 업데이트 |
+| `GET` | `/api/sp500` | S&P 500 목록 조회 |
 
 ## 🤖 자동 스케줄링
 
@@ -196,18 +196,21 @@ curl http://localhost:8080/api/scheduler/status
 ### 실시간 데이터 조회
 ```bash
 # 최신 가격 조회
-curl "http://localhost:8080/api/stocks/trades/AAPL/price"
+curl "http://localhost:8080/api/trades/AAPL/price"
 
 # 최신 거래 데이터 (10개)
-curl "http://localhost:8080/api/stocks/trades/latest/AAPL?limit=10"
+curl "http://localhost:8080/api/trades/latest/AAPL?limit=10"
 
 # 시간 범위별 이력
-curl "http://localhost:8080/api/stocks/trades/history?from=2024-01-01T00:00:00&to=2024-01-02T00:00:00"
+curl "http://localhost:8080/api/trades/history?from=2024-01-01T00:00:00&to=2024-01-02T00:00:00"
+
+# S&P 500 재무지표 조회 (오늘 또는 최근)
+curl "http://localhost:8080/api/financial-metrics/sp500"
 ```
 
 ### SSE 실시간 스트리밍 (JavaScript)
 ```javascript
-const eventSource = new EventSource('/api/stocks/trades/stream/AAPL?interval=5');
+const eventSource = new EventSource('/api/trades/stream/AAPL?interval=5');
 
 eventSource.addEventListener('trade_data', function(event) {
     const data = JSON.parse(event.data);
@@ -218,31 +221,31 @@ eventSource.addEventListener('trade_data', function(event) {
 ### 데이터 수집 (최적화된 Rate Limit)
 ```bash
 # 심볼 데이터 수집
-curl -X POST "http://localhost:8080/api/stocks/symbols/batch?exchange=US"
+curl -X POST "http://localhost:8080/api/symbols/batch?exchange=US"
 
 # 재무지표 수집 (60 requests/minute 자동 적용)
-curl -X POST "http://localhost:8080/api/stocks/financial-metrics/batch?batchSize=20"
+curl -X POST "http://localhost:8080/api/financial-metrics/admin/batch?batchSize=20"
 
 # S&P 500 재무지표 수집
-curl -X POST "http://localhost:8080/api/stocks/financial-metrics/sp500?batchSize=20"
+curl -X POST "http://localhost:8080/api/financial-metrics/admin/sp500?batchSize=20"
 
 # 특정 심볼 재무지표
-curl -X POST "http://localhost:8080/api/stocks/financial-metrics/AAPL"
+curl -X POST "http://localhost:8080/api/financial-metrics/admin/symbol/AAPL"
 
 # 회사프로필 수집 (자동 rate limiting)
-curl -X POST "http://localhost:8080/api/stocks/company-profiles/batch?batchSize=20"
+curl -X POST "http://localhost:8080/api/company-profiles/admin/batch?batchSize=20"
 
 # S&P 500 회사프로필 수집
-curl -X POST "http://localhost:8080/api/stocks/company-profiles/sp500?batchSize=20"
+curl -X POST "http://localhost:8080/api/company-profiles/admin/sp500?batchSize=20"
 ```
 
 ### WebSocket 관리
 ```bash
 # 연결 상태 확인
-curl "http://localhost:8080/api/stocks/trades/websocket/status"
+curl "http://localhost:8080/api/trades/websocket/status"
 
 # 연결 시작
-curl -X POST "http://localhost:8080/api/stocks/trades/websocket/admin/connect"
+curl -X POST "http://localhost:8080/api/trades/websocket/admin/connect"
 ```
 
 ## 📊 응답 형식
@@ -287,37 +290,38 @@ curl -X POST "http://localhost:8080/api/stocks/trades/websocket/admin/connect"
 **Total: 23 endpoints** (originally 28 → 23 after complete scheduler consolidation)
 
 ### Symbol Management (2 endpoints)
-- **Add Symbols Batch**: `/api/stocks/symbols/batch` (POST) - Batch fetch stock symbols from exchange
-- **Add Single Symbol**: `/api/stocks/symbols/{symbol}` (POST) - Fetch specific symbol data
+- **Add Symbols Batch**: `/api/symbols/batch` (POST) - Batch fetch stock symbols from exchange
+- **Add Single Symbol**: `/api/symbols/{symbol}` (POST) - Fetch specific symbol data
 
 ### S&P 500 Management (2 endpoints)
-- **Update S&P 500 List**: `/api/stocks/update/sp500` (POST) - Web scrape and update S&P 500 symbols
-- **Get S&P 500 Symbols**: `/api/stocks/sp500` (GET) - Retrieve all S&P 500 symbols
+- **Update S&P 500 List**: `/api/sp500/update` (POST) - Web scrape and update S&P 500 symbols
+- **Get S&P 500 Symbols**: `/api/sp500` (GET) - Retrieve all S&P 500 symbols
 
 ### Company Information (4 endpoints)
-- **Collect All Profiles**: `/api/stocks/company-profiles/batch` (POST) - Batch collect company profiles
-- **Collect Single Profile**: `/api/stocks/company-profiles/{symbol}` (POST) - Fetch specific company profile
-- **Get Company Profile**: `/api/stocks/company-profiles/{symbol}` (GET) - Retrieve stored company profile
-- **Collect S&P 500 Profiles**: `/api/stocks/company-profiles/sp500` (POST) - Batch collect S&P 500 company profiles
+- **Collect All Profiles**: `/api/company-profiles/admin/batch` (POST) - Batch collect company profiles
+- **Collect Single Profile**: `/api/company-profiles/admin/symbol/{symbol}` (POST) - Fetch specific company profile
+- **Get Company Profile**: `/api/company-profiles/{symbol}` (GET) - Retrieve stored company profile
+- **Collect S&P 500 Profiles**: `/api/company-profiles/admin/sp500` (POST) - Batch collect S&P 500 company profiles
 
 ### Financial Metrics (5 endpoints)
-- **Collect All Financials**: `/api/stocks/financial-metrics/batch` (POST) - Batch collect financial data
-- **Collect Single Financial**: `/api/stocks/financial-metrics/{symbol}` (POST) - Fetch specific financial metrics
-- **Get Financial Metrics**: `/api/stocks/financial-metrics/{symbol}` (GET) - Retrieve stored financial metrics
-- **Get Financial History**: `/api/stocks/financial-metrics/{symbol}/history` (GET) - Get financial metrics history
-- **Collect S&P 500 Financials**: `/api/stocks/financial-metrics/sp500` (POST) - Batch collect S&P 500 financial data
+- **Collect All Financials**: `/api/financial-metrics/admin/batch` (POST) - Batch collect financial data
+- **Collect Single Financial**: `/api/financial-metrics/{symbol}` (POST) - Fetch specific financial metrics
+- **Get Financial Metrics**: `/api/financial-metrics/{symbol}` (GET) - Retrieve stored financial metrics
+- **Get Financial History**: `/api/financial-metrics/{symbol}/history` (GET) - Get financial metrics history
+- **Get S&P 500 Financials**: `/api/financial-metrics/sp500` (GET) - Get S&P 500 financial metrics (today or most recent)
+- **Collect S&P 500 Financials**: `/api/financial-metrics/admin/sp500` (POST) - Batch collect S&P 500 financial data
 
 ### Real-time Trade Data (6 endpoints)
-- **Latest Trades by Symbol**: `/api/stocks/trades/latest/{symbol}` (GET) - Get latest trades for symbol
-- **Current Price**: `/api/stocks/trades/{symbol}/price` (GET) - Get current price for symbol
-- **Trade History**: `/api/stocks/trades/history` (GET) - Get trade history with filters
-- **WebSocket Status**: `/api/stocks/trades/websocket/status` (GET) - Check WebSocket connection status
-- **Connect WebSocket**: `/api/stocks/trades/websocket/admin/connect` (POST) - Start real-time data collection
-- **Disconnect WebSocket**: `/api/stocks/trades/websocket/admin/disconnect` (POST) - Stop real-time data collection
+- **Latest Trades by Symbol**: `/api/trades/latest/{symbol}` (GET) - Get latest trades for symbol
+- **Current Price**: `/api/trades/{symbol}/price` (GET) - Get current price for symbol
+- **Trade History**: `/api/trades/history` (GET) - Get trade history with filters
+- **WebSocket Status**: `/api/trades/websocket/status` (GET) - Check WebSocket connection status
+- **Connect WebSocket**: `/api/trades/websocket/admin/connect` (POST) - Start real-time data collection
+- **Disconnect WebSocket**: `/api/trades/websocket/admin/disconnect` (POST) - Stop real-time data collection
 
 ### News & Market Data (2 endpoints)
-- **Company News**: `/api/stocks/news/companies/{symbol}` (GET) - Get company-specific news
-- **Market News**: `/api/stocks/news/market` (GET) - Get general market news
+- **Company News**: `/api/news/companies/{symbol}` (GET) - Get company-specific news
+- **Market News**: `/api/news/market` (GET) - Get general market news
 
 ### Real-time Streaming (1 endpoint)  
 - **SSE Stream**: `/api/sse/{symbol}` (GET) - Server-Sent Events real-time price stream
@@ -429,6 +433,7 @@ curl http://localhost:8080/api/scheduler/status
 #### 재무 지표 API
 - `GET /api/financial-metrics/{symbol}` - 특정 주식의 최신 재무 지표 조회
 - `GET /api/financial-metrics/{symbol}/history` - 특정 주식의 재무 지표 기록 조회 (선택적 날짜 범위 필터링)
+- `GET /api/financial-metrics/sp500` - S&P 500 재무 지표 조회 (오늘 또는 최근)
 
 #### 회사 프로필 API
 - `GET /api/company-profiles/{symbol}` - 특정 주식의 회사 프로필 정보 조회
@@ -439,21 +444,38 @@ curl http://localhost:8080/api/scheduler/status
 #### S&P 500 API
 - `GET /api/sp500` - S&P 500 목록 조회
 
+#### 실시간 거래 데이터 API
+- `GET /api/trades/latest/{symbol}` - 최신 거래 데이터
+- `GET /api/trades/{symbol}/price` - 최신 가격
+- `GET /api/trades/history` - 거래 이력 (시간 범위)
+- `GET /api/trades/stream/{symbol}` - 실시간 SSE 스트리밍
+
+#### 뉴스 API
+- `GET /api/news/companies/{symbol}` - 회사 뉴스
+- `GET /api/news/market` - 시장 뉴스
+
 ### 관리자 전용 엔드포인트 (POST)
 
 #### 재무 지표 관리 API
-- `POST /api/admin/data/financial-metrics/{symbol}` - 특정 주식의 재무 지표 수집
-- `POST /api/admin/data/financial-metrics/batch` - 여러 주식의 재무 지표 일괄 수집
-- `POST /api/sp500/update` - S&P 500 종목들의 재무 지표 일괄 수집
+- `POST /api/financial-metrics/admin/symbol/{symbol}` - 특정 주식의 재무 지표 수집
+- `POST /api/financial-metrics/admin/batch` - 여러 주식의 재무 지표 일괄 수집
+- `POST /api/financial-metrics/admin/sp500` - S&P 500 종목들의 재무 지표 일괄 수집
 
 #### 회사 프로필 관리 API
-- `POST /api/admin/data/company-profiles/{symbol}` - 특정 주식의 회사 프로필 수집
-- `POST /api/admin/data/company-profiles/batch` - 여러 주식의 회사 프로필 일괄 수집
-- `POST /api/sp500/update` - S&P 500 종목들의 회사 프로필 일괄 수집
+- `POST /api/company-profiles/admin/symbol/{symbol}` - 특정 주식의 회사 프로필 수집
+- `POST /api/company-profiles/admin/batch` - 여러 주식의 회사 프로필 일괄 수집
+- `POST /api/company-profiles/admin/sp500` - S&P 500 종목들의 회사 프로필 일괄 수집
 
 #### 주식 심볼 관리 API
-- `POST /api/admin/data/symbols/{symbol}` - 새로운 주식 심볼 추가
-- `POST /api/admin/data/symbols/batch` - 여러 주식 심볼 일괄 추가
+- `POST /api/symbols/{symbol}` - 새로운 주식 심볼 추가
+- `POST /api/symbols/batch` - 여러 주식 심볼 일괄 추가
+
+#### S&P 500 관리 API
+- `POST /api/sp500/update` - S&P 500 목록 업데이트
+
+#### WebSocket 관리 API
+- `POST /api/trades/websocket/admin/connect` - WebSocket 연결 시작
+- `POST /api/trades/websocket/admin/disconnect` - WebSocket 연결 해제
 
 ### 인증 관련 API
 - `POST /api/auth/register` - 회원가입
@@ -464,10 +486,10 @@ curl http://localhost:8080/api/scheduler/status
 - `GET /api/auth/me` - 현재 로그인한 사용자 정보 조회
 
 ### 관심 종목 API
-- `GET /api/stocks/watchlist` - 관심 종목 목록 조회
-- `POST /api/stocks/watchlist` - 관심 종목 추가
-- `DELETE /api/stocks/watchlist/{symbol}` - 관심 종목 삭제
-- `GET /api/stocks/watchlist/count` - 관심 종목 개수 조회
+- `GET /api/watchlist` - 관심 종목 목록 조회
+- `POST /api/watchlist` - 관심 종목 추가
+- `DELETE /api/watchlist/{symbol}` - 관심 종목 삭제
+- `GET /api/watchlist/count` - 관심 종목 개수 조회
 
 ### 관리자 전용 시스템 API
 - `GET /api/admin/system/status` - 시스템 상태 조회

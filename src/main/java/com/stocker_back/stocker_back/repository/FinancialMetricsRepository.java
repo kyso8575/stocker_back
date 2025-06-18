@@ -59,4 +59,36 @@ public interface FinancialMetricsRepository extends JpaRepository<FinancialMetri
     @Query("SELECT CASE WHEN COUNT(fm) > 0 THEN true ELSE false END FROM FinancialMetrics fm " +
            "WHERE fm.symbol = :symbol AND CAST(fm.createdAt AS LocalDate) = :date")
     boolean existsBySymbolAndCreatedAtDate(@Param("symbol") String symbol, @Param("date") LocalDate date);
+    
+    /**
+     * Find all financial metrics for S&P 500 symbols on a specific date
+     * @param date the date to find metrics for (LocalDate)
+     * @return List of FinancialMetrics for S&P 500 symbols on the given date
+     */
+    @Query("SELECT fm FROM FinancialMetrics fm " +
+           "JOIN StockSymbol ss ON fm.symbol = ss.symbol " +
+           "WHERE ss.isSp500 = true AND CAST(fm.createdAt AS LocalDate) = :date " +
+           "ORDER BY fm.symbol ASC")
+    List<FinancialMetrics> findSp500FinancialMetricsByDate(@Param("date") LocalDate date);
+    
+    /**
+     * Find the most recent financial metrics for all S&P 500 symbols
+     * @return List of FinancialMetrics for S&P 500 symbols (most recent for each symbol)
+     */
+    @Query("SELECT fm FROM FinancialMetrics fm " +
+           "JOIN StockSymbol ss ON fm.symbol = ss.symbol " +
+           "WHERE ss.isSp500 = true " +
+           "AND fm.createdAt = (SELECT MAX(fm2.createdAt) FROM FinancialMetrics fm2 " +
+           "                    WHERE fm2.symbol = fm.symbol) " +
+           "ORDER BY fm.symbol ASC")
+    List<FinancialMetrics> findLatestSp500FinancialMetrics();
+    
+    /**
+     * Find the most recent date when S&P 500 financial metrics were collected
+     * @return Optional containing the most recent date, or empty if no data exists
+     */
+    @Query("SELECT MAX(CAST(fm.createdAt AS LocalDate)) FROM FinancialMetrics fm " +
+           "JOIN StockSymbol ss ON fm.symbol = ss.symbol " +
+           "WHERE ss.isSp500 = true")
+    Optional<LocalDate> findMostRecentSp500MetricsDate();
 } 

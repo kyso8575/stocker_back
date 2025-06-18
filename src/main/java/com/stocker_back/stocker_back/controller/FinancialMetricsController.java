@@ -283,7 +283,7 @@ public class FinancialMetricsController {
         @ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
         @ApiResponse(responseCode = "500", description = "서버 오류")
     })
-    @PostMapping("/admin/sp500/update")  // S&P 500 관련 경로 수정
+    @PostMapping("/admin/sp500")  // S&P 500 관련 경로 수정
     public ResponseEntity<Map<String, Object>> fetchSp500FinancialMetrics(
             @RequestParam(defaultValue = "20") int batchSize,
             @RequestParam(defaultValue = "0") int delayMs) {
@@ -303,6 +303,76 @@ public class FinancialMetricsController {
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (Exception e) {
             log.error("Error fetching S&P 500 financial metrics: {}", e.getMessage());
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    @Operation(
+        summary = "S&P 500 재무 지표 조회",
+        description = "오늘 날짜의 S&P 500 재무 지표를 조회합니다. 오늘 데이터가 없으면 가장 최근 날짜의 데이터를 반환합니다."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "S&P 500 재무 지표 조회 성공"),
+        @ApiResponse(responseCode = "404", description = "S&P 500 재무 지표를 찾을 수 없음"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    @GetMapping("/sp500")
+    public ResponseEntity<Map<String, Object>> getSp500FinancialMetrics() {
+        log.info("Received request to get S&P 500 financial metrics");
+        
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            LocalDate today = LocalDate.now();
+            List<FinancialMetrics> metricsList = financialMetricsRepository.findSp500FinancialMetricsByDate(today);
+            
+            // 오늘 데이터가 없으면 가장 최근 날짜의 데이터 조회
+            if (metricsList.isEmpty()) {
+                Optional<LocalDate> mostRecentDate = financialMetricsRepository.findMostRecentSp500MetricsDate();
+                
+                if (mostRecentDate.isPresent()) {
+                    LocalDate recentDate = mostRecentDate.get();
+                    metricsList = financialMetricsRepository.findSp500FinancialMetricsByDate(recentDate);
+                    
+                    response.put("success", true);
+                    response.put("data", metricsList);
+                    response.put("count", metricsList.size());
+                    response.put("date", recentDate.toString());
+                    response.put("isToday", false);
+                    response.put("message", String.format("No data for today (%s). Retrieved %d S&P 500 financial metrics from %s", 
+                            today, metricsList.size(), recentDate));
+                    
+                    log.info("No data for today. Retrieved {} S&P 500 financial metrics from {}", 
+                            metricsList.size(), recentDate);
+                } else {
+                    response.put("success", false);
+                    response.put("data", metricsList);
+                    response.put("count", 0);
+                    response.put("date", today.toString());
+                    response.put("isToday", true);
+                    response.put("message", "No S&P 500 financial metrics found in database");
+                    
+                    log.warn("No S&P 500 financial metrics found in database");
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+                }
+            } else {
+                response.put("success", true);
+                response.put("data", metricsList);
+                response.put("count", metricsList.size());
+                response.put("date", today.toString());
+                response.put("isToday", true);
+                response.put("message", String.format("Successfully retrieved %d S&P 500 financial metrics for today (%s)", 
+                        metricsList.size(), today));
+                
+                log.info("Retrieved {} S&P 500 financial metrics for today ({})", metricsList.size(), today);
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("Error retrieving S&P 500 financial metrics: {}", e.getMessage());
             response.put("success", false);
             response.put("error", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);

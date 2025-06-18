@@ -5,6 +5,7 @@ import com.stocker_back.stocker_back.domain.User;
 import com.stocker_back.stocker_back.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -22,7 +23,9 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
     private final UserRepository userRepository;
     
     @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+    public boolean preHandle(@NonNull HttpServletRequest request, 
+                           @NonNull HttpServletResponse response, 
+                           @NonNull Object handler) throws Exception {
         
         String requestURI = request.getRequestURI();
         log.debug("AuthenticationInterceptor checking: {}", requestURI);
@@ -90,7 +93,9 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
         
         // 사용자 정보를 request에 저장 (컨트롤러에서 사용 가능)
         request.setAttribute("userId", userId);
-        request.setAttribute("username", session.getAttribute("username"));
+        if (session != null) {
+            request.setAttribute("username", session.getAttribute("username"));
+        }
         
         return true;
     }
@@ -149,6 +154,11 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
      * 관리자 권한이 필요한 경로인지 확인
      */
     private boolean requiresAdminRole(String requestURI) {
+        // /admin이 포함된 모든 경로는 관리자 권한 필요
+        if (requestURI.contains("/admin")) {
+            return true;
+        }
+        
         String[] adminPaths = {
             "/api/admin",           // 모든 관리자 API의 기본 경로
             "/api/admin/data",      // 데이터 수집/수정 API
@@ -173,7 +183,7 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
      */
     private boolean requiresAuthentication(String requestURI) {
         String[] authenticatedPaths = {
-            "/api/stocks/watchlist",
+            "/api/watchlist",
             "/api/auth/me",
             "/api/auth/logout",
             "/api/profile"

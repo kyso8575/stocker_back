@@ -58,6 +58,7 @@ public class AuthController {
             session.setAttribute("username", user.getUsername());
             session.setAttribute("userEmail", user.getEmail());
             session.setAttribute("userFullName", user.getFullName());
+            session.setAttribute("userRole", user.getRole().name());
             
             log.info("Registration successful and auto login with session management: userId={}, username={}, sessionId={}", 
                     user.getId(), user.getUsername(), session.getId());
@@ -69,7 +70,8 @@ public class AuthController {
                     "id", user.getId(),
                     "username", user.getUsername(),
                     "email", user.getEmail(),
-                    "fullName", user.getFullName()
+                    "fullName", user.getFullName(),
+                    "role", user.getRole().name()
                 )
             ));
             
@@ -120,6 +122,7 @@ public class AuthController {
             session.setAttribute("username", user.getUsername());
             session.setAttribute("userEmail", user.getEmail());
             session.setAttribute("userFullName", user.getFullName());
+            session.setAttribute("userRole", user.getRole().name());
             
             log.info("Login successful with duplicate login management: userId={}, username={}, sessionId={}", 
                     user.getId(), user.getUsername(), session.getId());
@@ -131,7 +134,8 @@ public class AuthController {
                     "id", user.getId(),
                     "username", user.getUsername(),
                     "email", user.getEmail(),
-                    "fullName", user.getFullName()
+                    "fullName", user.getFullName(),
+                    "role", user.getRole().name()
                 )
             ));
             
@@ -241,6 +245,7 @@ public class AuthController {
             String username = (String) session.getAttribute("username");
             String userEmail = (String) session.getAttribute("userEmail");
             String userFullName = (String) session.getAttribute("userFullName");
+            String userRole = (String) session.getAttribute("userRole");
             
             if (userId == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
@@ -255,7 +260,8 @@ public class AuthController {
                     "id", userId,
                     "username", username,
                     "email", userEmail,
-                    "fullName", userFullName
+                    "fullName", userFullName,
+                    "role", userRole
                 )
             ));
         } catch (Exception e) {

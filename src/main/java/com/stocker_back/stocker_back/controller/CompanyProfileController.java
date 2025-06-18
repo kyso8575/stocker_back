@@ -184,7 +184,7 @@ public class CompanyProfileController {
         @ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
         @ApiResponse(responseCode = "500", description = "서버 오류")
     })
-    @PostMapping("/admin/sp500/update")  // S&P 500 관련 경로 수정
+    @PostMapping("/admin/sp500")  // S&P 500 관련 경로 수정
     public ResponseEntity<Map<String, Object>> fetchSp500CompanyProfiles(
             @RequestParam(defaultValue = "20") int batchSize,
             @RequestParam(defaultValue = "0") int delayMs) {
