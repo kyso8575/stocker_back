@@ -231,6 +231,20 @@ public class MultiKeyFinnhubWebSocketService {
         return dataSavingEnabled;
     }
     
+    /**
+     * 데이터 저장 활성화
+     */
+    public void enableDataSaving() {
+        setDataSavingEnabled(true);
+    }
+    
+    /**
+     * 데이터 저장 비활성화
+     */
+    public void disableDataSaving() {
+        setDataSavingEnabled(false);
+    }
+    
     // ===== Private Implementation Methods =====
     
     /**

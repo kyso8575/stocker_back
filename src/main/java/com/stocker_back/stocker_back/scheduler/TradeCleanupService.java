@@ -1,4 +1,4 @@
-package com.stocker_back.stocker_back.service;
+package com.stocker_back.stocker_back.scheduler;
 
 import com.stocker_back.stocker_back.repository.TradeRepository;
 import lombok.RequiredArgsConstructor;

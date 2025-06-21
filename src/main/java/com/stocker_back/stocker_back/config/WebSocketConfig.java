@@ -1,7 +1,7 @@
 package com.stocker_back.stocker_back.config;
 
 import com.stocker_back.stocker_back.service.MultiKeyFinnhubWebSocketService;
-import com.stocker_back.stocker_back.service.ScheduledWebSocketService;
+import com.stocker_back.stocker_back.scheduler.ScheduledWebSocketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

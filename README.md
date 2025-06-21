@@ -146,6 +146,18 @@ finnhub.api.key.1=your_finnhub_api_key
 | `POST` | `/api/sp500/update` | S&P 500 목록 업데이트 |
 | `GET` | `/api/sp500` | S&P 500 목록 조회 |
 
+### Financial Metrics (5 endpoints)
+- **Collect All Financials**: `/api/financial-metrics/admin/batch` (POST) - Batch collect financial data
+- **Collect Single Financial**: `/api/financial-metrics/{symbol}` (POST) - Fetch specific financial metrics
+- **Get Financial Metrics**: `/api/financial-metrics/{symbol}` (GET) - Retrieve stored financial metrics
+- **Get Financial History**: `/api/financial-metrics/{symbol}/history` (GET) - Get financial metrics history
+- **Get S&P 500 Financials**: `/api/financial-metrics/sp500` (GET) - Get S&P 500 financial metrics (today or most recent)
+- **Collect S&P 500 Financials**: `/api/financial-metrics/admin/sp500` (POST) - Batch collect S&P 500 financial data
+
+### Quote Data (2 endpoints)
+- **Collect S&P 500 Quotes**: `/api/quote/admin/sp500` (POST) - Batch collect S&P 500 quote data
+- **Collect Single Quote**: `/api/quote/admin/symbol/{symbol}` (POST) - Fetch specific stock quote
+
 ## 🤖 자동 스케줄링
 
 ### 📅 Daily Financial Metrics Collection
@@ -311,6 +323,10 @@ curl -X POST "http://localhost:8080/api/trades/websocket/admin/connect"
 - **Get S&P 500 Financials**: `/api/financial-metrics/sp500` (GET) - Get S&P 500 financial metrics (today or most recent)
 - **Collect S&P 500 Financials**: `/api/financial-metrics/admin/sp500` (POST) - Batch collect S&P 500 financial data
 
+### Quote Data (2 endpoints)
+- **Collect S&P 500 Quotes**: `/api/quote/admin/sp500` (POST) - Batch collect S&P 500 quote data
+- **Collect Single Quote**: `/api/quote/admin/symbol/{symbol}` (POST) - Fetch specific stock quote
+
 ### Real-time Trade Data (6 endpoints)
 - **Latest Trades by Symbol**: `/api/trades/latest/{symbol}` (GET) - Get latest trades for symbol
 - **Current Price**: `/api/trades/{symbol}/price` (GET) - Get current price for symbol
@@ -464,7 +480,6 @@ curl http://localhost:8080/api/scheduler/status
 #### 회사 프로필 관리 API
 - `POST /api/company-profiles/admin/symbol/{symbol}` - 특정 주식의 회사 프로필 수집
 - `POST /api/company-profiles/admin/batch` - 여러 주식의 회사 프로필 일괄 수집
-- `POST /api/company-profiles/admin/sp500` - S&P 500 종목들의 회사 프로필 일괄 수집
 
 #### 주식 심볼 관리 API
 - `POST /api/symbols/{symbol}` - 새로운 주식 심볼 추가

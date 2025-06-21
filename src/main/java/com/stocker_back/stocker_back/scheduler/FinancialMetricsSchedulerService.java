@@ -1,5 +1,6 @@
-package com.stocker_back.stocker_back.service;
+package com.stocker_back.stocker_back.scheduler;
 
+import com.stocker_back.stocker_back.service.FinancialMetricsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;

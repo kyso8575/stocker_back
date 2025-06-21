@@ -1,8 +1,9 @@
 package com.stocker_back.stocker_back.controller;
 
-import com.stocker_back.stocker_back.service.FinancialMetricsSchedulerService;
-import com.stocker_back.stocker_back.service.MonthlyDataSchedulerService;
-import com.stocker_back.stocker_back.service.ScheduledWebSocketService;
+import com.stocker_back.stocker_back.scheduler.FinancialMetricsSchedulerService;
+import com.stocker_back.stocker_back.scheduler.MonthlyDataSchedulerService;
+import com.stocker_back.stocker_back.scheduler.QuoteSchedulerService;
+import com.stocker_back.stocker_back.scheduler.ScheduledWebSocketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -31,11 +32,12 @@ public class SchedulerController {
 
     private final FinancialMetricsSchedulerService financialMetricsSchedulerService;
     private final MonthlyDataSchedulerService monthlyDataSchedulerService;
+    private final QuoteSchedulerService quoteSchedulerService;
     private final ScheduledWebSocketService webSocketSchedulerService;
 
     @Operation(
         summary = "통합 스케줄러 상태 조회",
-        description = "모든 자동화된 스케줄러(재무 지표, 월간 데이터, 웹소켓)의 상태와 설정을 조회합니다."
+        description = "모든 자동화된 스케줄러(재무 지표, 월간 데이터, 시세, 웹소켓)의 상태와 설정을 조회합니다."
     )
     @ApiResponses(value = {
         @ApiResponse(
@@ -76,7 +78,7 @@ public class SchedulerController {
             financialConfig.put("automation", "No manual intervention required");
             financialMetrics.put("config", financialConfig);
             
-            // Monthly Data Scheduler 상태 + 설정 (NEW!)
+            // Monthly Data Scheduler 상태 + 설정
             Map<String, Object> monthlyData = new HashMap<>();
             monthlyData.put("currentEasternTime", currentTime);
             monthlyData.put("nextScheduleInfo", monthlyDataSchedulerService.getNextScheduleInfo());
@@ -95,6 +97,26 @@ public class SchedulerController {
             monthlyConfig.put("estimatedDuration", "~10-15 minutes (list update + 503 profiles)");
             monthlyConfig.put("automation", "No manual intervention required");
             monthlyData.put("config", monthlyConfig);
+            
+            // Quote Scheduler 상태 + 설정 (NEW!)
+            Map<String, Object> quoteData = new HashMap<>();
+            quoteData.put("currentEasternTime", currentTime);
+            quoteData.put("nextScheduleInfo", quoteSchedulerService.getNextScheduleInfo());
+            quoteData.put("schedule", "Daily at 4:30 PM ET (Mon-Fri)");
+            quoteData.put("purpose", "S&P 500 daily closing quote collection");
+            quoteData.put("mode", "FULLY_AUTOMATED");
+            
+            // Quote 설정 정보
+            Map<String, Object> quoteConfig = new HashMap<>();
+            quoteConfig.put("cronExpression", "0 30 16 * * MON-FRI");
+            quoteConfig.put("timezone", "America/New_York");
+            quoteConfig.put("description", "Every weekday at 4:30 PM Eastern Time (30 minutes after market close)");
+            quoteConfig.put("targetSymbols", "S&P 500 stocks (503 symbols)");
+            quoteConfig.put("dataType", "Daily closing quotes");
+            quoteConfig.put("rateLimit", "60 requests/minute per API key");
+            quoteConfig.put("estimatedDuration", "~8.4 minutes (503 symbols × 1 second)");
+            quoteConfig.put("automation", "No manual intervention required");
+            quoteData.put("config", quoteConfig);
             
             // WebSocket Scheduler 상태
             Map<String, Object> webSocketStatus = new HashMap<>();
@@ -116,15 +138,17 @@ public class SchedulerController {
                 // 헬스체크 로직
                 financialMetricsSchedulerService.getCurrentEasternTime();
                 monthlyDataSchedulerService.getCurrentEasternTime();
+                quoteSchedulerService.getCurrentEasternTime();
                 webSocketSchedulerService.isScheduledWebSocketEnabled();
                 
                 healthInfo.put("status", "healthy");
                 healthInfo.put("financialMetricsService", "active");
                 healthInfo.put("monthlyDataService", "active");
+                healthInfo.put("quoteService", "active");
                 healthInfo.put("webSocketService", "active");
                 healthInfo.put("schedulerEnabled", true);
                 healthInfo.put("automationLevel", "FULL");
-                healthInfo.put("totalSchedulers", 3);
+                healthInfo.put("totalSchedulers", 4);
             } catch (Exception e) {
                 isHealthy = false;
                 healthMessage = "Some automated scheduler services have issues: " + e.getMessage();
@@ -137,10 +161,11 @@ public class SchedulerController {
             response.put("health", healthInfo);
             response.put("financialMetricsScheduler", financialMetrics);
             response.put("monthlyDataScheduler", monthlyData);
+            response.put("quoteScheduler", quoteData);
             response.put("webSocketScheduler", webSocketStatus);
             response.put("currentTime", currentTime);
             response.put("message", healthMessage);
-            response.put("note", "This is a fully automated system with 3 schedulers - no manual intervention required");
+            response.put("note", "This is a fully automated system with 4 schedulers - no manual intervention required");
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {
