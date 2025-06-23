@@ -27,13 +27,14 @@ S&P 500 주식의 실시간 거래 데이터를 수집하고 RESTful API로 제�
 - 🔄 **자동 정리**: 7일 이상 된 데이터 자동 삭제
 - 🌐 **완전한 REST API**: 25개의 RESTful 엔드포인트 제공
 - 📡 **SSE 실시간 스트리밍**: Server-Sent Events로 브라우저 실시간 데이터 전송
-- 📈 **포괄적인 데이터 관리**: 심볼, 재무지표, 회사프로필, 뉴스 통합 관리
+- 📈 **포괄적인 데이터 관리**: 심볼, 재무지표, 회사프로필, 뉴스, 시세 데이터 통합 관리
 - 🔒 **중복 방지**: 스마트한 중복 데이터 방지 및 명확한 응답 메시지
 
-## 🆕 최신 업데이트 (v2.1.0)
+## 🆕 최신 업데이트 (v2.2.0)
 
-### 🎯 자동 스케줄링 시스템
+### 🎯 자동 스케줄링 시스템 확장
 - **Financial Metrics 자동 수집**: 매일 9:00 AM ET에 S&P 500 재무 지표 자동 수집
+- **Quote Data 자동 수집**: 매일 4:30 PM ET에 S&P 500 종가 데이터 자동 수집 ⭐ **NEW**
 - **WebSocket Pre-market Setup**: 시장 개장 30분 전 연결 및 구독 완료
 - **데이터 손실 방지**: 시장 개장 즉시 데이터 저장 시작
 
@@ -43,9 +44,14 @@ S&P 500 주식의 실시간 거래 데이터를 수집하고 RESTful API로 제�
 - **배치 작업 최적화**: delayMs 기본값 500ms → 0ms (API 클라이언트에서 처리)
 
 ### 🔧 새로운 스케줄러 관리 API
-- **통합 상태 모니터링**: Financial Metrics + Monthly Data + WebSocket 스케줄러 통합 관리
+- **통합 상태 모니터링**: Financial Metrics + Quote Data + Monthly Data + WebSocket 스케줄러 통합 관리
 - **실시간 상태 확인**: Pre-market, Market Hours, Data Saving, Monthly Collection 상태 실시간 조회
-- **3개 스케줄러 통합**: 일일 재무지표, 월간 데이터, WebSocket 관리를 하나의 API로 모니터링
+- **4개 스케줄러 통합**: 일일 재무지표, 일일 시세, 월간 데이터, WebSocket 관리를 하나의 API로 모니터링
+
+### 📊 Quote Data API 추가
+- **S&P 500 시세 일괄 수집**: `/api/quote/admin/sp500` (POST)
+- **단일 주식 시세 수집**: `/api/quote/admin/symbol/{symbol}` (POST)
+- **자동 스케줄링**: 매일 4:30 PM ET에 S&P 500 종가 데이터 자동 수집
 
 ## 🏗️ 시스템 아키텍처
 
@@ -122,7 +128,7 @@ finnhub.api.key.1=your_finnhub_api_key
 ### 🤖 자동 스케줄러 관리 (NEW!)
 | 메서드 | 엔드포인트 | 설명 |
 |--------|-----------|------|
-| `GET` | `/api/scheduler/status` | **완전 통합 상태 조회** (헬스 + 설정 + Financial Metrics + WebSocket) |
+| `GET` | `/api/scheduler/status` | **완전 통합 상태 조회** (헬스 + 설정 + Financial Metrics + Quote Data + WebSocket) |
 
 ### 📊 주식 데이터 관리
 | 메서드 | 엔드포인트 | 설명 | 변경사항 |
@@ -136,7 +142,12 @@ finnhub.api.key.1=your_finnhub_api_key
 | `POST` | `/api/company-profiles/admin/batch` | 회사프로필 배치 수집 | 🔄 delayMs 기본값: 500ms → 0ms |
 | `POST` | `/api/company-profiles/admin/sp500` | S&P 500 회사프로필 수집 | 🔄 delayMs 기본값: 500ms → 0ms |
 | `POST` | `/api/company-profiles/admin/symbol/{symbol}` | 회사프로필 개별 수집 | |
-| `GET` | `/api/company-profiles/{symbol}` | 회사프로필 조회 | |
+
+### 📈 시세 데이터 관리 (NEW!)
+| 메서드 | 엔드포인트 | 설명 |
+|--------|-----------|------|
+| `POST` | `/api/quote/admin/sp500` | **S&P 500 시세 일괄 수집** ⭐ |
+| `POST` | `/api/quote/admin/symbol/{symbol}` | **단일 주식 시세 수집** ⭐ |
 
 ### 📰 뉴스 & 기타
 | 메서드 | 엔드포인트 | 설명 |
@@ -169,7 +180,17 @@ finnhub.api.key.1=your_finnhub_api_key
 - 에러 처리: Rate limit 재시도 로직 포함
 ```
 
-### 📆 Monthly Data Collection (NEW!)
+### 📈 Daily Quote Data Collection (NEW!)
+```
+🕟 매일 4:30 PM ET: S&P 500 종가 데이터 자동 수집 ⭐
+- 대상: 503개 S&P 500 종목
+- 소요시간: 약 8.4분 (60 requests/minute)
+- 배치 크기: 20개씩 처리
+- 수집 전략: 평일(종가), 주말(금요일 종가 유지)
+- 글로벌 시장 영향 확인을 위해 주말에도 데이터 수집
+```
+
+### 📆 Monthly Data Collection
 ```
 🗓️ 매월 1일 & 15일 8:00 AM ET: S&P 500 목록 & 회사 프로필 자동 수집
 - S&P 500 목록 업데이트 (웹 스크래핑)
@@ -195,6 +216,11 @@ finnhub.api.key.1=your_finnhub_api_key
 ├─ 데이터 저장 중단
 ├─ WebSocket 연결 해제
 └─ 시장 종료
+
+🕟 04:30 PM ET - DAILY QUOTE COLLECTION
+├─ S&P 500 종가 데이터 수집 시작
+├─ 배치 처리로 안정적인 데이터 수집
+└─ 주말에도 금요일 종가 유지 데이터 수집
 ```
 
 ## 📝 사용 예시
@@ -249,6 +275,12 @@ curl -X POST "http://localhost:8080/api/company-profiles/admin/batch?batchSize=2
 
 # S&P 500 회사프로필 수집
 curl -X POST "http://localhost:8080/api/company-profiles/admin/sp500?batchSize=20"
+
+# S&P 500 시세 데이터 수집 (NEW!)
+curl -X POST "http://localhost:8080/api/quote/admin/sp500?batchSize=20&delayMs=1000"
+
+# 단일 주식 시세 데이터 수집 (NEW!)
+curl -X POST "http://localhost:8080/api/quote/admin/symbol/AAPL"
 ```
 
 ### WebSocket 관리
@@ -299,7 +331,7 @@ curl -X POST "http://localhost:8080/api/trades/websocket/admin/connect"
 
 ## API Endpoints Overview
 
-**Total: 23 endpoints** (originally 28 → 23 after complete scheduler consolidation)
+**Total: 25 endpoints** (originally 28 → 25 after complete scheduler consolidation)
 
 ### Symbol Management (2 endpoints)
 - **Add Symbols Batch**: `/api/symbols/batch` (POST) - Batch fetch stock symbols from exchange
@@ -347,7 +379,7 @@ curl -X POST "http://localhost:8080/api/trades/websocket/admin/connect"
 
 | Endpoint | Method | Description |
 |----------|---------|-------------|
-| `/api/scheduler/status` | GET | Complete system status (Health + Financial Metrics + WebSocket + Config) |
+| `/api/scheduler/status` | GET | Complete system status (Health + Financial Metrics + Quote Data + WebSocket + Config) |
 
 **Note**: This is a fully automated system with a single comprehensive monitoring endpoint.
 
@@ -359,10 +391,11 @@ curl -X POST "http://localhost:8080/api/trades/websocket/admin/connect"
     "status": "healthy",
     "financialMetricsService": "active",
     "monthlyDataService": "active",
+    "quoteService": "active",
     "webSocketService": "active",
     "schedulerEnabled": true,
     "automationLevel": "FULL",
-    "totalSchedulers": 3
+    "totalSchedulers": 4
   },
   "financialMetricsScheduler": {
     "currentEasternTime": "2024-01-15 08:45:30 EST",
@@ -375,6 +408,24 @@ curl -X POST "http://localhost:8080/api/trades/websocket/admin/connect"
       "timezone": "America/New_York",
       "description": "Every weekday at 9:00 AM Eastern Time",
       "targetSymbols": "S&P 500 stocks (503 symbols)",
+      "batchSize": 20,
+      "rateLimit": "60 requests/minute per API key",
+      "estimatedDuration": "~8.4 minutes (503 symbols × 1 second)",
+      "automation": "No manual intervention required"
+    }
+  },
+  "quoteScheduler": {
+    "currentEasternTime": "2024-01-15 08:45:30 EST",
+    "nextScheduleInfo": "Next execution: Jan 15, 2024 at 4:30 PM EST (in 7 hours)",
+    "schedule": "Daily at 4:30 PM ET (Mon-Fri)",
+    "purpose": "S&P 500 daily closing quote collection",
+    "mode": "FULLY_AUTOMATED",
+    "config": {
+      "cronExpression": "0 30 16 * * MON-FRI",
+      "timezone": "America/New_York",
+      "description": "Every weekday at 4:30 PM Eastern Time (30 minutes after market close)",
+      "targetSymbols": "S&P 500 stocks (503 symbols)",
+      "dataType": "Daily closing quotes",
       "batchSize": 20,
       "rateLimit": "60 requests/minute per API key",
       "estimatedDuration": "~8.4 minutes (503 symbols × 1 second)",
@@ -410,7 +461,7 @@ curl -X POST "http://localhost:8080/api/trades/websocket/admin/connect"
   },
   "currentTime": "2024-01-15 08:45:30 EST",
   "message": "All automated scheduler services are running normally",
-  "note": "This is a fully automated system with 3 schedulers - no manual intervention required"
+  "note": "This is a fully automated system with 4 schedulers - no manual intervention required"
 }
 ```
 
@@ -422,18 +473,19 @@ curl -X POST "http://localhost:8080/api/trades/websocket/admin/connect"
 curl http://localhost:8080/api/scheduler/status
 ```
 
-### Version 2.1.0 - Enhanced Scheduling & Rate Limiting (Latest)
+### Version 2.2.0 - Enhanced Scheduling & Quote Data Collection (Latest)
 
 **🔄 Automated Scheduling System:**
 - **Daily Financial Metrics Collection**: Automatic S&P 500 data collection at 9:00 AM ET
+- **Daily Quote Data Collection**: Automatic S&P 500 closing quotes collection at 4:30 PM ET ⭐ **NEW**
 - **Monthly Data Collection**: S&P 500 list & company profiles update twice monthly (1st & 15th at 8:00 AM ET)
 - **Smart WebSocket Lifecycle**: Pre-market setup (9:00 AM) → Market data saving (9:30 AM - 4:00 PM)
 - **No Data Loss Protection**: Connections established before market open for instant readiness
-- **Full Automation**: Zero manual intervention required across all 3 schedulers
+- **Full Automation**: Zero manual intervention required across all 4 schedulers
 
 **📊 Enhanced API Management:**
 - **Scheduler Monitoring**: 1 endpoint for complete automated system status monitoring
-- **3-Scheduler Integration**: Financial Metrics + Monthly Data + WebSocket unified management
+- **4-Scheduler Integration**: Financial Metrics + Quote Data + Monthly Data + WebSocket unified management
 - **Consolidated Status API**: Single endpoint provides comprehensive system information
 - **Health Monitoring**: Real-time service health and configuration details
 
@@ -441,6 +493,12 @@ curl http://localhost:8080/api/scheduler/status
 - **Finnhub API Compliance**: Proper 60 requests/minute implementation
 - **API Client Enhancement**: Built-in 1000ms intervals between requests
 - **Controller Optimization**: Removed redundant delays (0ms defaults)
+
+**📈 Quote Data Management:**
+- **S&P 500 Quote Collection**: Daily closing quotes for all 503 S&P 500 stocks
+- **Weekend Strategy**: Friday closing prices maintained on weekends for global market tracking
+- **Batch Processing**: Individual transactions for data integrity
+- **Error Handling**: Graceful failure handling with detailed logging
 
 ## API 엔드포인트 구조
 
