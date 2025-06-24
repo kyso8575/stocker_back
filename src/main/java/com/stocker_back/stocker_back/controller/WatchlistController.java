@@ -3,6 +3,13 @@ package com.stocker_back.stocker_back.controller;
 import com.stocker_back.stocker_back.dto.WatchlistRequestDto;
 import com.stocker_back.stocker_back.dto.WatchlistResponseDto;
 import com.stocker_back.stocker_back.service.WatchlistService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,13 +27,24 @@ import java.util.Map;
 @RequestMapping("/api/watchlist")
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "Watchlist", description = "관심 종목 관리 API")
 public class WatchlistController {
     
     private final WatchlistService watchlistService;
     
-    /**
-     * 로그인한 사용자의 관심 종목 목록 조회
-     */
+    @Operation(
+        summary = "관심 종목 목록 조회",
+        description = "로그인한 사용자의 관심 종목 목록을 조회합니다."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "조회 성공",
+            content = @Content(schema = @Schema(implementation = WatchlistResponseDto.class))
+        ),
+        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
     @GetMapping
     public ResponseEntity<?> getWatchlist(HttpServletRequest request) {
         try {
@@ -53,13 +71,27 @@ public class WatchlistController {
         }
     }
     
-    /**
-     * 관심 종목 추가
-     */
+    @Operation(
+        summary = "관심 종목 추가",
+        description = "새로운 주식을 관심 종목에 추가합니다."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "추가 성공",
+            content = @Content(schema = @Schema(implementation = WatchlistResponseDto.class))
+        ),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
     @PostMapping
-    public ResponseEntity<?> addToWatchlist(@Valid @RequestBody WatchlistRequestDto requestDto,
+    public ResponseEntity<?> addToWatchlist(
+        @Parameter(description = "추가할 주식 정보", required = true)
+        @Valid @RequestBody WatchlistRequestDto requestDto,
                                           BindingResult bindingResult,
-                                          HttpServletRequest request) {
+        HttpServletRequest request
+    ) {
         try {
             Long userId = (Long) request.getAttribute("userId");
             
@@ -101,12 +133,23 @@ public class WatchlistController {
         }
     }
     
-    /**
-     * 관심 종목 제거
-     */
+    @Operation(
+        summary = "관심 종목 제거",
+        description = "관심 종목에서 특정 주식을 제거합니다."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "제거 성공"),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @ApiResponse(responseCode = "404", description = "관심 종목에 없는 주식"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
     @DeleteMapping("/{symbol}")
-    public ResponseEntity<?> removeFromWatchlist(@PathVariable String symbol,
-                                               HttpServletRequest request) {
+    public ResponseEntity<?> removeFromWatchlist(
+        @Parameter(description = "제거할 주식 심볼", required = true, example = "AAPL")
+        @PathVariable String symbol,
+        HttpServletRequest request
+    ) {
         try {
             Long userId = (Long) request.getAttribute("userId");
             
@@ -134,20 +177,33 @@ public class WatchlistController {
         }
     }
     
-    /**
-     * 특정 주식이 관심 종목에 있는지 확인
-     */
+    @Operation(
+        summary = "관심 종목 확인",
+        description = "특정 주식이 관심 종목에 있는지 확인합니다."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "확인 성공",
+            content = @Content(schema = @Schema(implementation = Map.class))
+        ),
+        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
     @GetMapping("/check/{symbol}")
-    public ResponseEntity<?> checkInWatchlist(@PathVariable String symbol,
-                                            HttpServletRequest request) {
+    public ResponseEntity<?> checkInWatchlist(
+        @Parameter(description = "확인할 주식 심볼", required = true, example = "AAPL")
+        @PathVariable String symbol,
+        HttpServletRequest request
+    ) {
         try {
             Long userId = (Long) request.getAttribute("userId");
             
-            boolean isInWatchlist = watchlistService.isInWatchlist(userId, symbol);
+            boolean exist = watchlistService.exist(userId, symbol);
             
             return ResponseEntity.ok(Map.of(
                 "success", true,
-                "inWatchlist", isInWatchlist,
+                "exist", exist,
                 "symbol", symbol.toUpperCase()
             ));
             
@@ -160,9 +216,19 @@ public class WatchlistController {
         }
     }
     
-    /**
-     * 관심 종목 개수 조회
-     */
+    @Operation(
+        summary = "관심 종목 개수 조회",
+        description = "사용자의 관심 종목 개수를 조회합니다."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "조회 성공",
+            content = @Content(schema = @Schema(implementation = Map.class))
+        ),
+        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
     @GetMapping("/count")
     public ResponseEntity<?> getWatchlistCount(HttpServletRequest request) {
         try {

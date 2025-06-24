@@ -20,8 +20,11 @@ public class GlobalExceptionHandler {
         Map<String, Object> errorResponse = new HashMap<>();
         
         String paramName = ex.getName();
-        String paramType = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "unknown";
-        String providedValue = ex.getValue() != null ? ex.getValue().toString() : "null";
+        Class<?> requiredType = ex.getRequiredType();
+        Object value = ex.getValue();
+        
+        String paramType = requiredType != null ? requiredType.getSimpleName() : "unknown";
+        String providedValue = value != null ? value.toString() : "null";
         
         errorResponse.put("success", false);
         errorResponse.put("error", String.format(

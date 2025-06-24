@@ -353,4 +353,13 @@ public class FinnhubApiClient {
     public String getRateLimitInfo() {
         return String.format("Rate limit: 60 requests/minute (min interval: %dms)", MIN_REQUEST_INTERVAL_MS);
     }
+
+    /**
+     * 특정 심볼의 시세 데이터를 가져옵니다.
+     * @param symbol 주식 심볼 (예: AAPL)
+     * @return QuoteDTO 또는 null (데이터가 없는 경우)
+     */
+    public com.stocker_back.stocker_back.dto.QuoteDTO getQuote(String symbol) {
+        return get("/quote", com.stocker_back.stocker_back.dto.QuoteDTO.class, "symbol", symbol);
+    }
 } 

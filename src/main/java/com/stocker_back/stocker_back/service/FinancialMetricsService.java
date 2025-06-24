@@ -97,8 +97,8 @@ public class FinancialMetricsService {
         log.info("Starting to fetch basic financial metrics for all symbols with batchSize={}, delayMs={}", 
                 batchSize, delayMs);
         
-        List<StockSymbol> allSymbols = stockSymbolRepository.findByProfileEmptyFalse();
-        log.info("Found {} symbols with valid company profiles", allSymbols.size());
+        List<StockSymbol> allSymbols = stockSymbolRepository.findAll();
+        log.info("Found {} total symbols to process", allSymbols.size());
         
         int totalProcessed = 0;
         int totalSkipped = 0;

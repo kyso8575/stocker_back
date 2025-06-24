@@ -76,7 +76,7 @@ public class MultiKeyFinnhubWebSocketService {
     private final ConcurrentHashMap<String, FinnhubTradeDTO.TradeData> latestTradeBySymbol = new ConcurrentHashMap<>();
     
     // ===== Data Saving Control =====
-    private volatile boolean dataSavingEnabled = true; // 기본적으로 활성화
+    private volatile boolean dataSavingEnabled = false; // 기본적으로 비활성화 (시장 시간에만 활성화)
     
     // ===== Initialization =====
     
@@ -229,6 +229,20 @@ public class MultiKeyFinnhubWebSocketService {
      */
     public boolean isDataSavingEnabled() {
         return dataSavingEnabled;
+    }
+    
+    /**
+     * 데이터 저장 활성화
+     */
+    public void enableDataSaving() {
+        setDataSavingEnabled(true);
+    }
+    
+    /**
+     * 데이터 저장 비활성화
+     */
+    public void disableDataSaving() {
+        setDataSavingEnabled(false);
     }
     
     // ===== Private Implementation Methods =====

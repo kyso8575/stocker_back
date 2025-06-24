@@ -18,12 +18,11 @@ public class UserService {
     
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final SessionManagementService sessionManagementService;
     
     /**
      * User registration
      */
-    public User registerUser(UserRegistrationDto registrationDto, String currentSessionId) {
+    public User registerUser(UserRegistrationDto registrationDto) {
         log.info("User registration attempt: username={}, email={}", registrationDto.getUsername(), registrationDto.getEmail());
         
         // Input validation
@@ -54,20 +53,16 @@ public class UserService {
         
         User savedUser = userRepository.save(user);
         
-        // *** 회원가입 후 자동 로그인을 위해 혹시 존재할 수 있는 기존 세션들을 정리 ***
-        // (일반적으로는 없겠지만, 안전을 위해 추가)
-        sessionManagementService.invalidateUserSessions(savedUser.getId(), currentSessionId);
-        
         log.info("User registration completed: id={}, username={}", savedUser.getId(), savedUser.getUsername());
         
         return savedUser;
     }
     
     /**
-     * User login with duplicate session management
+     * User login
      */
     @Transactional
-    public User loginUser(UserLoginDto loginDto, String currentSessionId) {
+    public User loginUser(UserLoginDto loginDto) {
         log.info("User login attempt: usernameOrEmail={}", loginDto.getUsernameOrEmail());
         
         // Input validation
@@ -91,16 +86,7 @@ public class UserService {
             throw new IllegalArgumentException("Account is locked");
         }
         
-        // *** 중복 로그인 관리: 기존 세션들을 무효화 ***
-        int previousSessionCount = sessionManagementService.getActiveSessionCount(user.getId());
-        if (previousSessionCount > 0) {
-            log.info("Invalidating {} existing sessions for user: {} (userId: {})", 
-                    previousSessionCount, user.getUsername(), user.getId());
-            sessionManagementService.invalidateUserSessions(user.getId(), currentSessionId);
-        }
-        
-        log.info("User login successful: id={}, username={}, previous sessions invalidated: {}", 
-                user.getId(), user.getUsername(), previousSessionCount);
+        log.info("User login successful: id={}, username={}", user.getId(), user.getUsername());
         return user;
     }
     

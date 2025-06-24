@@ -9,6 +9,12 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -20,8 +26,9 @@ import java.util.Map;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/stocks/trades")
+@RequestMapping("/api/trades")
 @RequiredArgsConstructor
+@Tag(name = "Trade", description = "거래 데이터 및 웹소켓 관리 API")
 public class TradeController {
     
     private final MultiKeyFinnhubWebSocketService multiKeyWebSocketService;
@@ -149,9 +156,18 @@ public class TradeController {
     
     // ===== WebSocket 관리 API =====
     
-    /**
-     * WebSocket 연결 상태 조회
-     */
+    @Operation(
+        summary = "웹소켓 연결 상태 조회",
+        description = "실시간 거래 데이터 수집을 위한 웹소켓 연결 상태를 조회합니다."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "웹소켓 상태 조회 성공",
+            content = @Content(schema = @Schema(implementation = Map.class))
+        ),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
     @GetMapping("/websocket/status")
     public ResponseEntity<Map<String, Object>> getWebSocketStatus() {
         Map<String, Boolean> connectionStatus = multiKeyWebSocketService.getConnectionStatus();
@@ -166,10 +182,21 @@ public class TradeController {
         ));
     }
     
-    /**
-     * WebSocket 연결 시작
-     */
-    @PostMapping("/websocket/connect")
+    @Operation(
+        summary = "웹소켓 연결 시작",
+        description = "실시간 거래 데이터 수집을 위한 웹소켓 연결을 시작합니다. (관리자 전용)"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "201",
+            description = "웹소켓 연결 시작 성공",
+            content = @Content(schema = @Schema(implementation = Map.class))
+        ),
+        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    @PostMapping("/websocket/admin/connect")
     public ResponseEntity<Map<String, Object>> connectWebSocket() {
         try {
             multiKeyWebSocketService.connectAll();
@@ -189,10 +216,21 @@ public class TradeController {
         }
     }
     
-    /**
-     * WebSocket 연결 해제
-     */
-    @PostMapping("/websocket/disconnect")
+    @Operation(
+        summary = "웹소켓 연결 해제",
+        description = "실시간 거래 데이터 수집을 위한 웹소켓 연결을 해제합니다. (관리자 전용)"
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "웹소켓 연결 해제 성공",
+            content = @Content(schema = @Schema(implementation = Map.class))
+        ),
+        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    @PostMapping("/websocket/admin/disconnect")
     public ResponseEntity<Map<String, Object>> disconnectWebSocket() {
         try {
             multiKeyWebSocketService.disconnectAll();

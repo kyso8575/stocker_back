@@ -96,7 +96,7 @@ public class StockSymbol {
         if (lastProfileUpdated == null) {
             lastProfileUpdated = lastUpdated;
         }
-        // 기본적으로 프로필은 비어있다고 설정
-        profileEmpty = true;
+        // 기본적으로 프로필이 있다고 가정 (false)
+        profileEmpty = false;
     }
 } 

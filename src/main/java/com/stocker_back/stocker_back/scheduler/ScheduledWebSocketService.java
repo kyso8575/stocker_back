@@ -1,5 +1,6 @@
-package com.stocker_back.stocker_back.service;
+package com.stocker_back.stocker_back.scheduler;
 
+import com.stocker_back.stocker_back.service.MultiKeyFinnhubWebSocketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -107,6 +108,21 @@ public class ScheduledWebSocketService {
             return;
         }
         
+        // 현재 시장 상태 업데이트
+        boolean currentPreMarketStatus = isPreMarketSetupTime();
+        boolean currentMarketStatus = isUSMarketOpen();
+        
+        // 시장 상태가 변경되었으면 업데이트
+        if (currentPreMarketStatus && !isPreMarketSetup) {
+            isPreMarketSetup = true;
+            log.info("🟡 PRE-MARKET SETUP DETECTED - Starting WebSocket connections");
+            connectAndSubscribeWebSocket();
+        } else if (currentMarketStatus && !isMarketHours) {
+            isMarketHours = true;
+            log.info("🟢 MARKET HOURS DETECTED - Starting data saving");
+            startDataSaving();
+        }
+        
         // Pre-market이나 market 시간에만 모니터링
         if (!isPreMarketSetup && !isMarketHours) {
             return;
@@ -114,12 +130,23 @@ public class ScheduledWebSocketService {
         
         boolean actuallyConnected = multiKeyWebSocketService.isAnyConnected();
         
-        if (!actuallyConnected && isConnected) {
-            log.warn("⚠️ WebSocket connection lost during market/pre-market hours - attempting reconnection");
+        // 연결이 안 되어 있고 활성 시간이면 연결 시도
+        if (!actuallyConnected) {
+            if (isConnected) {
+                log.warn("⚠️ WebSocket connection lost during market/pre-market hours - attempting reconnection");
+            } else {
+                log.warn("⚠️ WebSocket not connected during active hours - attempting initial connection");
+            }
             connectAndSubscribeWebSocket();
         } else if (actuallyConnected && !isConnected) {
             log.info("✅ WebSocket connection restored");
             isConnected = true;
+        }
+        
+        // 시장 시간이고 연결되어 있지만 데이터 저장이 비활성화되어 있으면 활성화
+        if (isMarketHours && actuallyConnected && !isDataSavingActive) {
+            log.info("💾 Market hours detected with active connection - enabling data saving");
+            startDataSaving();
         }
         
         // 연결 상태 로깅 (디버그용)
@@ -127,7 +154,7 @@ public class ScheduledWebSocketService {
             log.debug("📡 WebSocket monitoring: Connected (pre-market: {}, market: {}, data saving: {})", 
                     isPreMarketSetup, isMarketHours, isDataSavingActive);
         } else {
-            log.warn("❌ WebSocket monitoring: Not connected during active hours");
+            log.warn("❌ WebSocket monitoring: Not connected during active hours - will retry on next check");
         }
     }
     
@@ -198,119 +225,85 @@ public class ScheduledWebSocketService {
                 isConnected = true;
             }
         } catch (Exception e) {
-            log.error("❌ Error during pre-market WebSocket setup", e);
+            log.error("❌ Error during WebSocket connection setup: {}", e.getMessage(), e);
             isConnected = false;
         }
     }
     
     /**
-     * 데이터 저장 시작 (Market open 시간)
+     * 데이터 저장 활성화 (시장 개장 시간)
      */
     private void startDataSaving() {
         try {
             if (multiKeyWebSocketService.isAnyConnected()) {
-                // WebSocket 서비스에 데이터 저장 활성화 신호
-                multiKeyWebSocketService.setDataSavingEnabled(true);
+                log.info("💾 Enabling data saving for real-time trade data");
+                multiKeyWebSocketService.enableDataSaving();
                 isDataSavingActive = true;
-                log.info("💾 Data saving activated - market is now open");
+                log.info("✅ Data saving enabled - collecting real-time trade data");
             } else {
-                log.error("❌ Cannot start data saving - WebSocket not connected");
-                // 긴급 연결 시도
-                connectAndSubscribeWebSocket();
-            }
-        } catch (Exception e) {
-            log.error("❌ Error starting data saving", e);
-        }
-    }
-    
-    /**
-     * 데이터 저장 중단 및 WebSocket 연결 해제 (Market close 시간)
-     */
-    private void stopDataSavingAndDisconnect() {
-        try {
-            // 데이터 저장 중단
-            if (isDataSavingActive) {
-                multiKeyWebSocketService.setDataSavingEnabled(false);
+                log.warn("⚠️ Cannot enable data saving - WebSocket not connected");
                 isDataSavingActive = false;
-                log.info("💾 Data saving stopped - market is now closed");
-            }
-            
-            // WebSocket 연결 해제
-            if (multiKeyWebSocketService.isAnyConnected()) {
-                log.info("🔌 Disconnecting WebSocket connections (market closed)");
-                multiKeyWebSocketService.disconnectAll();
-                isConnected = false;
-                log.info("✅ WebSocket connections disconnected successfully");
-            } else {
-                log.debug("✅ WebSocket already disconnected");
-                isConnected = false;
             }
         } catch (Exception e) {
-            log.error("❌ Error during market close cleanup", e);
-            isConnected = false;
+            log.error("❌ Error enabling data saving: {}", e.getMessage(), e);
             isDataSavingActive = false;
         }
     }
     
-    // ===== Public API Methods =====
-    
     /**
-     * 현재 시장 시간 상태 조회
+     * 데이터 저장 중단 및 WebSocket 연결 해제 (시장 마감 시간)
      */
+    private void stopDataSavingAndDisconnect() {
+        try {
+            log.info("🛑 Stopping data saving and disconnecting WebSocket");
+            
+            // 데이터 저장 중단
+            multiKeyWebSocketService.disableDataSaving();
+            isDataSavingActive = false;
+            
+            // WebSocket 연결 해제
+            multiKeyWebSocketService.disconnectAll();
+            isConnected = false;
+            
+            log.info("✅ Data saving stopped and WebSocket disconnected");
+            log.info("📅 Next market session: Tomorrow at 9:00 AM ET (pre-market setup)");
+            
+        } catch (Exception e) {
+            log.error("❌ Error during WebSocket cleanup: {}", e.getMessage(), e);
+        }
+    }
+    
+    // ===== Public Status Methods =====
+    
     public boolean isMarketHours() {
         return isMarketHours;
     }
     
-    /**
-     * 현재 Pre-market setup 상태 조회
-     */
     public boolean isPreMarketSetup() {
         return isPreMarketSetup;
     }
     
-    /**
-     * 현재 데이터 저장 상태 조회
-     */
     public boolean isDataSavingActive() {
         return isDataSavingActive;
     }
     
-    /**
-     * 현재 WebSocket 연결 상태 조회
-     */
     public boolean isWebSocketConnected() {
         return isConnected && multiKeyWebSocketService.isAnyConnected();
     }
     
-    /**
-     * 스케줄링된 WebSocket 서비스 활성화/비활성화
-     */
     public void setScheduledWebSocketEnabled(boolean enabled) {
         this.scheduledWebSocketEnabled = enabled;
-        log.info("📋 Scheduled WebSocket service {}", enabled ? "enabled" : "disabled");
-        
-        if (!enabled && isConnected) {
-            stopDataSavingAndDisconnect();
-        }
+        log.info("Scheduled WebSocket service {} by admin", enabled ? "enabled" : "disabled");
     }
     
-    /**
-     * 현재 스케줄링 상태 확인
-     */
     public boolean isScheduledWebSocketEnabled() {
         return scheduledWebSocketEnabled;
     }
     
-    /**
-     * 현재 모니터링 간격 조회 (밀리초)
-     */
     public long getMonitorIntervalMs() {
         return monitorIntervalMs;
     }
     
-    /**
-     * 다음 시장 이벤트 시간 정보
-     */
     public String getNextMarketEvent() {
         ZonedDateTime nowET = ZonedDateTime.now(ZoneId.of("America/New_York"));
         

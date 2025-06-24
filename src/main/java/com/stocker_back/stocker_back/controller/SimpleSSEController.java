@@ -7,9 +7,14 @@ import com.stocker_back.stocker_back.service.MultiKeyFinnhubWebSocketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.media.Content;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -24,8 +29,9 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/stocks/trades/stream")
+@RequestMapping("/api/trades/stream")
 @RequiredArgsConstructor
+@Tag(name = "Trade Stream", description = "실시간 거래 데이터 스트리밍 API")
 public class SimpleSSEController {
     
     private final MultiKeyFinnhubWebSocketService multiKeyWebSocketService;
@@ -35,15 +41,24 @@ public class SimpleSSEController {
     // 활성 SSE 연결 관리
     private final Map<String, SseEmitter> activeConnections = new ConcurrentHashMap<>();
     
-    /**
-     * 특정 심볼의 실시간 거래 데이터 스트리밍
-     * 
-     * @param symbol 심볼 (예: AAPL)
-     * @param interval 업데이트 간격 (초, 기본: 5초)
-     */
+    @Operation(
+        summary = "실시간 거래 데이터 스트리밍",
+        description = "특정 주식 심볼의 실시간 거래 데이터를 SSE(Server-Sent Events)로 스트리밍합니다."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "스트리밍 시작",
+            content = @Content(mediaType = MediaType.TEXT_EVENT_STREAM_VALUE)
+        ),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
     @GetMapping(value = "/{symbol}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamTradesBySymbol(
+            @Parameter(description = "주식 심볼 (예: AAPL)", required = true, example = "AAPL")
             @PathVariable String symbol,
+            @Parameter(description = "업데이트 간격 (초)", example = "5")
             @RequestParam(defaultValue = "5") int interval) {
         
         String upperSymbol = symbol.toUpperCase();
