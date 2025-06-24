@@ -108,6 +108,21 @@ public class ScheduledWebSocketService {
             return;
         }
         
+        // 현재 시장 상태 업데이트
+        boolean currentPreMarketStatus = isPreMarketSetupTime();
+        boolean currentMarketStatus = isUSMarketOpen();
+        
+        // 시장 상태가 변경되었으면 업데이트
+        if (currentPreMarketStatus && !isPreMarketSetup) {
+            isPreMarketSetup = true;
+            log.info("🟡 PRE-MARKET SETUP DETECTED - Starting WebSocket connections");
+            connectAndSubscribeWebSocket();
+        } else if (currentMarketStatus && !isMarketHours) {
+            isMarketHours = true;
+            log.info("🟢 MARKET HOURS DETECTED - Starting data saving");
+            startDataSaving();
+        }
+        
         // Pre-market이나 market 시간에만 모니터링
         if (!isPreMarketSetup && !isMarketHours) {
             return;
@@ -115,12 +130,23 @@ public class ScheduledWebSocketService {
         
         boolean actuallyConnected = multiKeyWebSocketService.isAnyConnected();
         
-        if (!actuallyConnected && isConnected) {
-            log.warn("⚠️ WebSocket connection lost during market/pre-market hours - attempting reconnection");
+        // 연결이 안 되어 있고 활성 시간이면 연결 시도
+        if (!actuallyConnected) {
+            if (isConnected) {
+                log.warn("⚠️ WebSocket connection lost during market/pre-market hours - attempting reconnection");
+            } else {
+                log.warn("⚠️ WebSocket not connected during active hours - attempting initial connection");
+            }
             connectAndSubscribeWebSocket();
         } else if (actuallyConnected && !isConnected) {
             log.info("✅ WebSocket connection restored");
             isConnected = true;
+        }
+        
+        // 시장 시간이고 연결되어 있지만 데이터 저장이 비활성화되어 있으면 활성화
+        if (isMarketHours && actuallyConnected && !isDataSavingActive) {
+            log.info("💾 Market hours detected with active connection - enabling data saving");
+            startDataSaving();
         }
         
         // 연결 상태 로깅 (디버그용)
@@ -128,7 +154,7 @@ public class ScheduledWebSocketService {
             log.debug("📡 WebSocket monitoring: Connected (pre-market: {}, market: {}, data saving: {})", 
                     isPreMarketSetup, isMarketHours, isDataSavingActive);
         } else {
-            log.warn("❌ WebSocket monitoring: Not connected during active hours");
+            log.warn("❌ WebSocket monitoring: Not connected during active hours - will retry on next check");
         }
     }
     

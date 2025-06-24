@@ -38,4 +38,13 @@ public class WatchlistResponseDto {
     
     @Schema(description = "관심 종목 추가 시간")
     private LocalDateTime addedAt;
+    
+    @Schema(description = "회사 로고 URL", example = "https://static2.finnhub.io/file/publicdatany/finnhubimage/stock_logo/AAPL.png")
+    private String logo;
+    
+    @Schema(description = "가격 변화", example = "1.23")
+    private java.math.BigDecimal change;
+    
+    @Schema(description = "현재가", example = "123.45")
+    private java.math.BigDecimal price;
 } 

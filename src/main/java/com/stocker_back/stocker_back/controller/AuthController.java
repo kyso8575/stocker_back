@@ -201,10 +201,10 @@ public class AuthController {
     @GetMapping("/check-username")
     public ResponseEntity<?> checkUsername(@RequestParam String username) {
         try {
-            boolean exists = userService.isUsernameExists(username);
+            boolean exist = userService.isUsernameExists(username);
             return ResponseEntity.ok(Map.of(
-                "exists", exists,
-                "message", exists ? "Username is already taken" : "Username is available"
+                "exist", exist,
+                "message", exist ? "Username is already taken" : "Username is available"
             ));
         } catch (Exception e) {
             log.error("Error checking username availability", e);
@@ -221,10 +221,10 @@ public class AuthController {
     @GetMapping("/check-email")
     public ResponseEntity<?> checkEmail(@RequestParam String email) {
         try {
-            boolean exists = userService.isEmailExists(email);
+            boolean exist = userService.isEmailExists(email);
             return ResponseEntity.ok(Map.of(
-                "exists", exists,
-                "message", exists ? "Email is already in use" : "Email is available"
+                "exist", exist,
+                "message", exist ? "Email is already in use" : "Email is available"
             ));
         } catch (Exception e) {
             log.error("Error checking email availability", e);

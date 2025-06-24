@@ -76,7 +76,7 @@ public class Sp500Controller {
 
     @Operation(
         summary = "S&P 500 심볼 목록 조회",
-        description = "S&P 500에 포함된 모든 주식 심볼을 조회합니다."
+        description = "S&P 500에 포함된 모든 주식 심볼과 회사명을 조회합니다."
     )
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "S&P 500 심볼 목록 조회 성공"),
@@ -87,12 +87,21 @@ public class Sp500Controller {
         log.info("Received request to get S&P 500 symbols");
         
         try {
-            Set<String> sp500Symbols = sp500ScraperService.findAllSp500Symbols();
+            List<StockSymbol> sp500Stocks = stockSymbolRepository.findByIsSp500TrueAndProfileEmptyFalse();
+            
+            List<Map<String, String>> stockList = sp500Stocks.stream()
+                    .map(stock -> {
+                        Map<String, String> stockInfo = new HashMap<>();
+                        stockInfo.put("symbol", stock.getSymbol());
+                        stockInfo.put("name", stock.getName() != null ? stock.getName() : stock.getDescription());
+                        return stockInfo;
+                    })
+                    .toList();
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
-            response.put("message", String.format("Found %d S&P 500 symbols", sp500Symbols.size()));
-            response.put("symbols", sp500Symbols);
+            response.put("message", String.format("Found %d S&P 500 stocks", stockList.size()));
+            response.put("stocks", stockList);
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -156,11 +165,7 @@ public class Sp500Controller {
         Map<String, Object> stockData = new HashMap<>();
         stockData.put("symbol", symbol);
         stockData.put("name", stockSymbol.getName() != null ? stockSymbol.getName() : stockSymbol.getDescription());
-        stockData.put("currency", stockSymbol.getCurrency());
-        stockData.put("exchange", stockSymbol.getExchange());
-        stockData.put("industry", stockSymbol.getFinnhubIndustry());
         stockData.put("logo", stockSymbol.getLogo());
-        stockData.put("weburl", stockSymbol.getWeburl());
 
         // 현재가: Trade에서 최신 값 우선, 하루 안에 없으면 Quote 사용
         BigDecimal currentPrice = getCurrentPrice(symbol);
@@ -168,11 +173,16 @@ public class Sp500Controller {
         
         // 이전 종가: Quote에서 가져오기
         BigDecimal previousPrice = getPreviousPrice(symbol);
-        stockData.put("previousPrice", previousPrice);
         
         // 거래량: Quote에서 가져오기
         Long volume = getVolume(symbol);
         stockData.put("volume", volume);
+        
+        // 고가, 저가: Quote에서 가져오기
+        BigDecimal high = getHigh(symbol);
+        BigDecimal low = getLow(symbol);
+        stockData.put("high", high);
+        stockData.put("low", low);
         
         // 가격 변화 계산
         if (previousPrice != null && previousPrice.compareTo(BigDecimal.ZERO) > 0) {
@@ -185,19 +195,6 @@ public class Sp500Controller {
         } else {
             stockData.put("change", BigDecimal.ZERO);
             stockData.put("percentChange", BigDecimal.ZERO);
-        }
-
-        // 시가총액 정보 조회 (FinancialMetrics에서)
-        Optional<FinancialMetrics> latestMetricsOpt = financialMetricsRepository.findTopBySymbolOrderByCreatedAtDesc(symbol);
-        if (latestMetricsOpt.isPresent()) {
-            FinancialMetrics metrics = latestMetricsOpt.get();
-            if (metrics.getMarketCapitalization() != null) {
-                stockData.put("marketCap", BigDecimal.valueOf(metrics.getMarketCapitalization()));
-            } else {
-                stockData.put("marketCap", BigDecimal.ZERO);
-            }
-        } else {
-            stockData.put("marketCap", BigDecimal.ZERO);
         }
 
         return stockData;
@@ -256,5 +253,31 @@ public class Sp500Controller {
             return latestQuoteOpt.get().getVolume();
         }
         return 0L;
+    }
+    
+    /**
+     * 고가를 조회합니다. Quote 테이블에서 가져옵니다.
+     * @param symbol 주식 심볼
+     * @return 고가
+     */
+    private BigDecimal getHigh(String symbol) {
+        Optional<Quote> latestQuoteOpt = quoteRepository.findLatestQuoteBySymbol(symbol);
+        if (latestQuoteOpt.isPresent()) {
+            return latestQuoteOpt.get().getHighPrice();
+        }
+        return BigDecimal.ZERO;
+    }
+    
+    /**
+     * 저가를 조회합니다. Quote 테이블에서 가져옵니다.
+     * @param symbol 주식 심볼
+     * @return 저가
+     */
+    private BigDecimal getLow(String symbol) {
+        Optional<Quote> latestQuoteOpt = quoteRepository.findLatestQuoteBySymbol(symbol);
+        if (latestQuoteOpt.isPresent()) {
+            return latestQuoteOpt.get().getLowPrice();
+        }
+        return BigDecimal.ZERO;
     }
 } 

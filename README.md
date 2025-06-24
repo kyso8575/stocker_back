@@ -154,8 +154,9 @@ finnhub.api.key.1=your_finnhub_api_key
 |--------|-----------|------|
 | `GET` | `/api/news/companies/{symbol}` | 회사 뉴스 |
 | `GET` | `/api/news/market` | 시장 뉴스 |
-| `POST` | `/api/sp500/update` | S&P 500 목록 업데이트 |
-| `GET` | `/api/sp500` | S&P 500 목록 조회 |
+| `POST` | `/api/sp500/admin/update` | S&P 500 목록 업데이트 |
+| `GET` | `/api/sp500` | S&P 500 심볼 및 회사명 목록 조회 |
+| `GET` | `/api/sp500/table` | S&P 500 테이블 데이터 조회 (가격, 변화율, 거래량 등) |
 
 ### Financial Metrics (5 endpoints)
 - **Collect All Financials**: `/api/financial-metrics/admin/batch` (POST) - Batch collect financial data
@@ -292,6 +293,18 @@ curl "http://localhost:8080/api/trades/websocket/status"
 curl -X POST "http://localhost:8080/api/trades/websocket/admin/connect"
 ```
 
+### S&P 500 데이터 조회 (UPDATED!)
+```bash
+# S&P 500 심볼 및 회사명 목록 조회 (symbol, name 포함)
+curl "http://localhost:8080/api/sp500"
+
+# S&P 500 테이블 데이터 조회 (가격, 변화율, 거래량, 로고 등)
+curl "http://localhost:8080/api/sp500/table"
+
+# S&P 500 목록 업데이트 (관리자 전용)
+curl -X POST "http://localhost:8080/api/sp500/admin/update"
+```
+
 ## 📊 응답 형식
 
 ### 성공 응답
@@ -310,6 +323,52 @@ curl -X POST "http://localhost:8080/api/trades/websocket/admin/connect"
   "success": false,
   "error": "Error message",
   "timestamp": "2024-01-15T10:30:00"
+}
+```
+
+### S&P 500 응답 예시 (UPDATED!)
+
+**S&P 500 심볼 목록 응답:**
+```json
+{
+  "success": true,
+  "message": "Found 500 S&P 500 stocks",
+  "stocks": [
+    {
+      "symbol": "OXY",
+      "name": "Occidental Petroleum Corp"
+    },
+    {
+      "symbol": "MLM",
+      "name": "Martin Marietta Materials Inc"
+    },
+    {
+      "symbol": "AAPL",
+      "name": "Apple Inc"
+    }
+  ]
+}
+```
+
+**S&P 500 테이블 데이터 응답:**
+```json
+{
+  "success": true,
+  "message": "Successfully retrieved S&P 500 table data for 500 stocks",
+  "data": [
+    {
+      "symbol": "OXY",
+      "name": "Occidental Petroleum Corp",
+      "logo": "https://static2.finnhub.io/file/publicdatany/finnhubimage/stock_logo/OXY.png",
+      "price": 45.630000,
+      "high": 45.895400,
+      "low": 45.360000,
+      "change": 0.280000,
+      "percentChange": 0.6200,
+      "volume": 1234567
+    }
+  ],
+  "totalCount": 500
 }
 ```
 
@@ -337,9 +396,10 @@ curl -X POST "http://localhost:8080/api/trades/websocket/admin/connect"
 - **Add Symbols Batch**: `/api/symbols/batch` (POST) - Batch fetch stock symbols from exchange
 - **Add Single Symbol**: `/api/symbols/{symbol}` (POST) - Fetch specific symbol data
 
-### S&P 500 Management (2 endpoints)
-- **Update S&P 500 List**: `/api/sp500/update` (POST) - Web scrape and update S&P 500 symbols
-- **Get S&P 500 Symbols**: `/api/sp500` (GET) - Retrieve all S&P 500 symbols
+### S&P 500 Management (3 endpoints)
+- **Update S&P 500 List**: `/api/sp500/admin/update` (POST) - Web scrape and update S&P 500 symbols
+- **Get S&P 500 Symbols & Names**: `/api/sp500` (GET) - Retrieve all S&P 500 symbols with company names
+- **Get S&P 500 Table Data**: `/api/sp500/table` (GET) - Get S&P 500 stock data for table display (price, change, volume, etc.)
 
 ### Company Information (4 endpoints)
 - **Collect All Profiles**: `/api/company-profiles/admin/batch` (POST) - Batch collect company profiles

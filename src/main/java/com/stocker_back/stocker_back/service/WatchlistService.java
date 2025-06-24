@@ -3,17 +3,22 @@ package com.stocker_back.stocker_back.service;
 import com.stocker_back.stocker_back.domain.User;
 import com.stocker_back.stocker_back.domain.StockSymbol;
 import com.stocker_back.stocker_back.domain.Watchlist;
+import com.stocker_back.stocker_back.domain.Quote;
 import com.stocker_back.stocker_back.dto.WatchlistRequestDto;
 import com.stocker_back.stocker_back.dto.WatchlistResponseDto;
 import com.stocker_back.stocker_back.repository.UserRepository;
 import com.stocker_back.stocker_back.repository.StockSymbolRepository;
 import com.stocker_back.stocker_back.repository.WatchlistRepository;
+import com.stocker_back.stocker_back.repository.QuoteRepository;
+import com.stocker_back.stocker_back.repository.TradeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,6 +30,8 @@ public class WatchlistService {
     private final WatchlistRepository watchlistRepository;
     private final UserRepository userRepository;
     private final StockSymbolRepository stockSymbolRepository;
+    private final QuoteRepository quoteRepository;
+    private final TradeRepository tradeRepository;
     
     /**
      * 사용자의 관심 종목 목록 조회
@@ -99,7 +106,7 @@ public class WatchlistService {
     /**
      * 특정 주식이 사용자의 관심 종목에 있는지 확인
      */
-    public boolean isInWatchlist(Long userId, String symbol) {
+    public boolean exist(Long userId, String symbol) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
         
@@ -126,6 +133,32 @@ public class WatchlistService {
     private WatchlistResponseDto convertToResponseDto(Watchlist watchlist) {
         StockSymbol stockSymbol = watchlist.getStockSymbol();
         
+        // 현재가: Trade에서 하루 안의 최신 데이터 조회, 없으면 null
+        java.math.BigDecimal price = null;
+        try {
+            java.time.LocalDateTime oneDayAgo = java.time.LocalDateTime.now().minusDays(1);
+            java.util.List<com.stocker_back.stocker_back.domain.Trade> recentTrades = tradeRepository.findTradesBySymbolAfter(stockSymbol.getSymbol(), oneDayAgo);
+            if (!recentTrades.isEmpty()) {
+                price = recentTrades.get(0).getPrice();
+            }
+        } catch (Exception e) {
+            log.warn("Failed to fetch price from Trade for symbol {}: {}", stockSymbol.getSymbol(), e.getMessage());
+        }
+        
+        // change 계산 (Quote 기준)
+        BigDecimal change = null;
+        try {
+            Optional<Quote> latestQuoteOpt = quoteRepository.findLatestQuoteBySymbol(stockSymbol.getSymbol());
+            if (latestQuoteOpt.isPresent()) {
+                Quote quote = latestQuoteOpt.get();
+                if (quote.getCurrentPrice() != null && quote.getPreviousClosePrice() != null) {
+                    change = quote.getCurrentPrice().subtract(quote.getPreviousClosePrice());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to calculate change for symbol {}: {}", stockSymbol.getSymbol(), e.getMessage());
+        }
+        
         return WatchlistResponseDto.builder()
                 .id(watchlist.getId())
                 .symbol(stockSymbol.getSymbol())
@@ -135,6 +168,9 @@ public class WatchlistService {
                 .currency(stockSymbol.getCurrency())
                 .exchange(stockSymbol.getExchange())
                 .addedAt(watchlist.getAddedAt())
+                .logo(stockSymbol.getLogo())
+                .change(change)
+                .price(price)
                 .build();
     }
 } 

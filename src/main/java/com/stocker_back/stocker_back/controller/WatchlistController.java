@@ -199,11 +199,11 @@ public class WatchlistController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             
-            boolean isInWatchlist = watchlistService.isInWatchlist(userId, symbol);
+            boolean exist = watchlistService.exist(userId, symbol);
             
             return ResponseEntity.ok(Map.of(
                 "success", true,
-                "inWatchlist", isInWatchlist,
+                "exist", exist,
                 "symbol", symbol.toUpperCase()
             ));
             
