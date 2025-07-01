@@ -1,10 +1,8 @@
 package com.stocker_back.stocker_back.controller;
 
-import com.stocker_back.stocker_back.domain.FinancialMetrics;
 import com.stocker_back.stocker_back.domain.Quote;
 import com.stocker_back.stocker_back.domain.StockSymbol;
 import com.stocker_back.stocker_back.domain.Trade;
-import com.stocker_back.stocker_back.repository.FinancialMetricsRepository;
 import com.stocker_back.stocker_back.repository.QuoteRepository;
 import com.stocker_back.stocker_back.repository.StockSymbolRepository;
 import com.stocker_back.stocker_back.repository.TradeRepository;
@@ -38,7 +36,6 @@ public class Sp500Controller {
     private final StockSymbolRepository stockSymbolRepository;
     private final QuoteRepository quoteRepository;
     private final TradeRepository tradeRepository;
-    private final FinancialMetricsRepository financialMetricsRepository;
 
     @Operation(
         summary = "S&P 500 리스트 업데이트",
@@ -94,6 +91,7 @@ public class Sp500Controller {
                         Map<String, String> stockInfo = new HashMap<>();
                         stockInfo.put("symbol", stock.getSymbol());
                         stockInfo.put("name", stock.getName() != null ? stock.getName() : stock.getDescription());
+                        stockInfo.put("logo", stock.getLogo());
                         return stockInfo;
                     })
                     .toList();

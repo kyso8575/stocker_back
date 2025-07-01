@@ -25,7 +25,8 @@ public class SecurityConfig {
             .formLogin(form -> form.disable()) // Disable default form login
             .httpBasic(basic -> basic.disable()) // Disable HTTP Basic auth
             .authorizeHttpRequests(auth -> auth
-                .anyRequest().permitAll() // Allow all requests, authentication will be handled by interceptor
+                // 모든 요청을 허용 (커스텀 인터셉터가 인증을 처리)
+                .anyRequest().permitAll()
             )
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
