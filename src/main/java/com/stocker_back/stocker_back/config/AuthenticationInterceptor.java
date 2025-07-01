@@ -30,23 +30,18 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
         String requestURI = request.getRequestURI();
         log.debug("AuthenticationInterceptor checking: {}", requestURI);
         
-        // 관리자 권한이 필요한 경로인지 확인
-        if (requiresAdminRole(requestURI)) {
-            return handleAdminAccess(request, response, requestURI);
-        }
-        
-        // 일반 인증이 필요한 경로인지 확인
+        // 인증이 필요한 경로인지 확인
         if (requiresAuthentication(requestURI)) {
-            return handleUserAccess(request, response, requestURI);
+            return handleAuthentication(request, response, requestURI);
         }
         
         return true; // 공개 접근 허용
     }
     
     /**
-     * 관리자 접근 처리
+     * 인증 처리 (일반 사용자 및 관리자)
      */
-    private boolean handleAdminAccess(HttpServletRequest request, HttpServletResponse response, String requestURI) throws Exception {
+    private boolean handleAuthentication(HttpServletRequest request, HttpServletResponse response, String requestURI) throws Exception {
         HttpSession session = request.getSession(false);
         Long userId = null;
         
@@ -55,47 +50,32 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
         }
         
         if (userId == null) {
-            log.warn("Unauthorized admin access attempt (no login) to: {}", requestURI);
+            log.warn("Unauthorized access attempt (no login) to: {}", requestURI);
             return sendUnauthorizedResponse(request, response, "로그인이 필요합니다");
         }
         
-        // 사용자 정보 조회하여 관리자 권한 확인
+        // 사용자 정보 조회
         User user = userRepository.findById(userId).orElse(null);
-        if (user == null || user.getRole() != User.Role.ADMIN) {
-            log.warn("Forbidden admin access attempt by userId: {} to: {}", userId, requestURI);
-            return sendForbiddenResponse(request, response, "관리자 권한이 필요합니다");
+        if (user == null) {
+            log.warn("User not found for userId: {} accessing: {}", userId, requestURI);
+            return sendUnauthorizedResponse(request, response, "사용자 정보를 찾을 수 없습니다");
+        }
+        
+        // 관리자 권한이 필요한 경로인지 확인
+        if (requiresAdminRole(requestURI)) {
+            if (user.getRole() != User.Role.ADMIN) {
+                log.warn("Forbidden admin access attempt by userId: {} to: {}", userId, requestURI);
+                return sendForbiddenResponse(request, response, "관리자 권한이 필요합니다");
+            }
+            log.info("Admin access granted to userId: {} for: {}", userId, requestURI);
+        } else {
+            log.info("User access granted to userId: {} for: {}", userId, requestURI);
         }
         
         // 사용자 정보를 request에 저장
         request.setAttribute("userId", userId);
         request.setAttribute("username", user.getUsername());
         request.setAttribute("userRole", user.getRole().name());
-        
-        log.info("Admin access granted to userId: {} for: {}", userId, requestURI);
-        return true;
-    }
-    
-    /**
-     * 일반 사용자 접근 처리
-     */
-    private boolean handleUserAccess(HttpServletRequest request, HttpServletResponse response, String requestURI) throws Exception {
-        HttpSession session = request.getSession(false);
-        Long userId = null;
-        
-        if (session != null) {
-            userId = (Long) session.getAttribute("userId");
-        }
-        
-        if (userId == null) {
-            log.warn("Unauthorized access attempt to: {}", requestURI);
-            return sendUnauthorizedResponse(request, response, "로그인이 필요합니다");
-        }
-        
-        // 사용자 정보를 request에 저장 (컨트롤러에서 사용 가능)
-        request.setAttribute("userId", userId);
-        if (session != null) {
-            request.setAttribute("username", session.getAttribute("username"));
-        }
         
         return true;
     }
@@ -182,6 +162,11 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
      * 일반 인증이 필요한 경로인지 확인
      */
     private boolean requiresAuthentication(String requestURI) {
+        // 관리자 권한이 필요한 경로도 인증이 필요하므로 먼저 확인
+        if (requiresAdminRole(requestURI)) {
+            return true;
+        }
+        
         String[] authenticatedPaths = {
             "/api/watchlist",
             "/api/auth/me",
