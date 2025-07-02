@@ -21,6 +21,10 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class WebSocketConfig {
     
+    private static final int AUTO_CONNECT_DELAY_MS = 3000;
+    private static final String MARKET_HOURS = "9:30 AM - 4:00 PM ET (Monday-Friday)";
+    private static final int DATA_COLLECTION_INTERVAL_SEC = 10;
+    
     private final MultiKeyFinnhubWebSocketService multiKeyFinnhubWebSocketService;
     private final ScheduledWebSocketService scheduledWebSocketService;
     
@@ -35,30 +39,30 @@ public class WebSocketConfig {
      */
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
-        log.info("🚀 Application ready, initializing trade data collection...");
-        
+        log.info("WebSocket 서비스 초기화 시작");
         if (scheduledWebSocketEnabled) {
-            log.info("📅 Scheduled WebSocket service is enabled");
-            log.info("   ├─ 🕐 Market hours monitoring: ACTIVE");
-            log.info("   ├─ 🔄 WebSocket connection management: AUTOMATIC");
-            log.info("   ├─ ⏱️  Data collection interval: Every 10 seconds during market hours");
-            log.info("   └─ 🇺🇸 Market hours: 9:30 AM - 4:00 PM ET (Monday-Friday)");
-            
-            scheduledWebSocketService.setScheduledWebSocketEnabled(true);
+            initializeScheduledService();
         }
-        
         if (autoConnectWebSocket) {
-            log.info("🔧 Manual WebSocket auto-connect is enabled (will run alongside scheduled service)");
-            try {
-                Thread.sleep(3000);
-                multiKeyFinnhubWebSocketService.connectAll();
-            } catch (Exception e) {
-                log.error("❌ Failed to auto-connect WebSocket", e);
-            }
+            initializeManualAutoConnect();
         } else {
-            log.info("⚙️  Manual WebSocket auto-connect is disabled. Use scheduled service or API endpoints to connect.");
+            log.info("수동 WebSocket 자동 연결 비활성화됨");
         }
-        
-        log.info("✅ WebSocket service initialization completed");
+        log.info("WebSocket 서비스 초기화 완료");
+    }
+
+    private void initializeScheduledService() {
+        log.info("스케줄링 WebSocket 서비스 활성화 (시장시간: {}, 수집주기: {}초)", MARKET_HOURS, DATA_COLLECTION_INTERVAL_SEC);
+        scheduledWebSocketService.setScheduledWebSocketEnabled(true);
+    }
+
+    private void initializeManualAutoConnect() {
+        log.info("수동 WebSocket 자동 연결 활성화");
+        try {
+            Thread.sleep(AUTO_CONNECT_DELAY_MS);
+            multiKeyFinnhubWebSocketService.connectAll();
+        } catch (Exception e) {
+            log.error("WebSocket 자동 연결 실패", e);
+        }
     }
 } 

@@ -8,6 +8,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
+import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 
 @Configuration
 @EnableWebSecurity
@@ -25,21 +27,25 @@ public class SecurityConfig {
             .formLogin(form -> form.disable()) // Disable default form login
             .httpBasic(basic -> basic.disable()) // Disable HTTP Basic auth
             .authorizeHttpRequests(auth -> auth
-                // 모든 요청을 허용 (커스텀 인터셉터가 인증을 처리)
                 .anyRequest().permitAll()
             )
-            .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                .sessionFixation().changeSessionId() // 세션 고정 공격 방지
-            )
-            .headers(headers -> headers
-                .httpStrictTransportSecurity(hsts -> hsts
-                    .maxAgeInSeconds(31536000)
-                    .includeSubDomains(true)
-                    .preload(true)
-                )
-            );
+            .sessionManagement(this::configureSessionManagement)
+            .headers(this::configureHeaders);
         
         return http.build();
+    }
+
+    private void configureSessionManagement(SessionManagementConfigurer<HttpSecurity> session) {
+        session
+            .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            .sessionFixation().changeSessionId();
+    }
+
+    private void configureHeaders(HeadersConfigurer<HttpSecurity> headers) {
+        headers.httpStrictTransportSecurity(hsts -> hsts
+            .maxAgeInSeconds(31536000)
+            .includeSubDomains(true)
+            .preload(true)
+        );
     }
 } 
