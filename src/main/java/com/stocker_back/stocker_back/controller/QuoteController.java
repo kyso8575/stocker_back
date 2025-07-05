@@ -50,7 +50,7 @@ public class QuoteController {
                 "processedCount", savedCount,
                 "batchSize", batchSize,
                 "delayMs", delayMs,
-                "estimatedTime", String.format("%.1f minutes", (savedCount / 60.0))
+                "estimatedTime", ResponseMessages.format("%.1f minutes", (savedCount / 60.0))
             );
             
             return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(
@@ -90,7 +90,7 @@ public class QuoteController {
                     )
                 ));
             } else {
-                return ResponseEntity.ok(AuthResponseDto.error(
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(
                     ResponseMessages.format("No quote data available for %s", symbol)
                 ));
             }

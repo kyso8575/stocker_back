@@ -15,7 +15,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -55,7 +54,7 @@ public class FinancialMetricsController {
                 ));
             } else {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(
-                    String.format("No financial metrics found for %s", symbol)
+                    ResponseMessages.format("No financial metrics found for %s", symbol)
                 ));
             }
         } catch (Exception e) {
@@ -94,14 +93,14 @@ public class FinancialMetricsController {
                 );
                 
                 String message = ((from != null && !from.isEmpty()) || (to != null && !to.isEmpty())) ?
-                    String.format("%d records found for %s in range", metricsHistory.size(), symbol) :
-                    String.format("%d records found for %s", metricsHistory.size(), symbol);
+                    ResponseMessages.format("%d records found for %s in range", metricsHistory.size(), symbol) :
+                    ResponseMessages.format("%d records found for %s", metricsHistory.size(), symbol);
                 
                 return ResponseEntity.ok(AuthResponseDto.success(message, data));
             } else {
                 String message = ((from != null && !from.isEmpty()) || (to != null && !to.isEmpty())) ?
-                    String.format("No records found for %s in range", symbol) :
-                    String.format("No records found for %s", symbol);
+                    ResponseMessages.format("No records found for %s in range", symbol) :
+                    ResponseMessages.format("No records found for %s", symbol);
                 
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(message));
             }
@@ -134,7 +133,7 @@ public class FinancialMetricsController {
             int savedCount = financialMetricsService.fetchAndSaveAllBasicFinancials(batchSize, delayMs);
             
             return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(
-                String.format("%d financial metrics processed", savedCount),
+                ResponseMessages.format("%d financial metrics processed", savedCount),
                 Map.of("processedCount", savedCount)
             ));
         } catch (Exception e) {
@@ -164,7 +163,7 @@ public class FinancialMetricsController {
             switch (result.getStatus()) {
                 case SUCCESS:
                     return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(
-                        String.format("Financial metrics fetched for %s", symbol),
+                        ResponseMessages.format("Financial metrics fetched for %s", symbol),
                         Map.of(
                             "symbol", symbol,
                             "data", result.getMetrics()
@@ -173,7 +172,7 @@ public class FinancialMetricsController {
                 case SKIPPED:
                     return ResponseEntity.ok(AuthResponseDto.success(result.getMessage()));
                 case NO_DATA:
-                    return ResponseEntity.ok(AuthResponseDto.error(result.getMessage()));
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(result.getMessage()));
                 case ERROR:
                     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                         .body(AuthResponseDto.error(result.getMessage()));
@@ -210,7 +209,7 @@ public class FinancialMetricsController {
             int savedCount = financialMetricsService.fetchAndSaveSp500BasicFinancials(batchSize, delayMs);
             
             return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(
-                String.format("%d financial metrics processed", savedCount),
+                ResponseMessages.format("%d financial metrics processed", savedCount),
                 Map.of("processedCount", savedCount)
             ));
         } catch (Exception e) {
@@ -236,21 +235,19 @@ public class FinancialMetricsController {
         try {
             Map<String, Object> result = financialMetricsService.getSp500FinancialMetrics();
             
-            @SuppressWarnings("unchecked")
-            List<FinancialMetrics> metricsList = (List<FinancialMetrics>) result.get("data");
             int count = (Integer) result.get("count");
             String date = (String) result.get("date");
             boolean isToday = (Boolean) result.get("isToday");
             
             if (count > 0) {
                 String message = isToday ?
-                    String.format("%d records found for S&P 500 on %s", count, date) :
-                    String.format("%d records found for S&P 500 as of %s", count, date);
+                    ResponseMessages.format("%d records found for S&P 500 on %s", count, date) :
+                    ResponseMessages.format("%d records found for S&P 500 as of %s", count, date);
                 
                 return ResponseEntity.ok(AuthResponseDto.success(message, result));
             } else {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(
-                    String.format("No records found for S&P 500 on %s", date)
+                    ResponseMessages.format("No records found for S&P 500 on %s", date)
                 ));
             }
         } catch (Exception e) {

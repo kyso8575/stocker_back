@@ -124,7 +124,7 @@ public class WatchlistController {
             
         } catch (IllegalArgumentException e) {
             log.warn("Failed to add to watchlist: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(AuthResponseDto.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(AuthResponseDto.error(ResponseMessages.ERROR_INVALID_INPUT));
         } catch (Exception e) {
             log.error("Error adding to watchlist", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -164,7 +164,7 @@ public class WatchlistController {
             
         } catch (IllegalArgumentException e) {
             log.warn("Failed to remove from watchlist: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(AuthResponseDto.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(AuthResponseDto.error(ResponseMessages.ERROR_INVALID_INPUT));
         } catch (Exception e) {
             log.error("Error removing from watchlist", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

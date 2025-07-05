@@ -2,7 +2,6 @@ package com.stocker_back.stocker_back.service;
 
 import com.stocker_back.stocker_back.domain.Trade;
 import com.stocker_back.stocker_back.repository.TradeRepository;
-import com.stocker_back.stocker_back.service.MultiKeyFinnhubWebSocketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

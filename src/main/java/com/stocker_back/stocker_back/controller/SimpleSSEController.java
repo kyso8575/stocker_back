@@ -1,10 +1,13 @@
 package com.stocker_back.stocker_back.controller;
 
 import com.stocker_back.stocker_back.constant.ResponseMessages;
+import com.stocker_back.stocker_back.dto.AuthResponseDto;
 import com.stocker_back.stocker_back.service.SSEService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,6 +16,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.media.Content;
+
+import java.util.Map;
 
 /**
  * SSE 실시간 거래 데이터 스트리밍 API 컨트롤러
@@ -52,7 +57,29 @@ public class SimpleSSEController {
             return sseService.createSSEConnection(symbol, interval);
         } catch (Exception e) {
             log.error("Error creating SSE connection for symbol {}: {}", symbol, e.getMessage());
-            throw new RuntimeException("Failed to create SSE connection", e);
+            throw new RuntimeException(ResponseMessages.format("Failed to create SSE connection for symbol %s", symbol), e);
+        }
+    }
+    
+    /**
+     * SSE 연결 상태 조회
+     */
+    @GetMapping("/status")
+    public ResponseEntity<?> getSSEStatus() {
+        try {
+            Map<String, Object> statusData = Map.of(
+                "service", "SSE Service",
+                "status", "Active",
+                "description", "Server-Sent Events streaming service"
+            );
+            return ResponseEntity.ok(AuthResponseDto.success(
+                ResponseMessages.SUCCESS,
+                statusData
+            ));
+        } catch (Exception e) {
+            log.error("Error retrieving SSE status", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
     }
 } 

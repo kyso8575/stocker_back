@@ -58,7 +58,7 @@ public class CompanyProfileController {
             StockSymbol stockSymbol = stockSymbolOpt.get();
             
             if (stockSymbol.isProfileEmpty()) {
-                return ResponseEntity.ok(AuthResponseDto.error(ResponseMessages.format("No profile information available for %s", symbol)));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(ResponseMessages.format("No profile information available for %s", symbol)));
             }
             
             CompanyProfileDTO profileData = convertToCompanyProfileDTO(stockSymbol);

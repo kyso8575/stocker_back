@@ -58,7 +58,7 @@ public class AuthController {
             
         } catch (IllegalArgumentException e) {
             log.warn("Registration failed: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(AuthResponseDto.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(AuthResponseDto.error(ResponseMessages.ERROR_INVALID_INPUT));
         } catch (Exception e) {
             log.error("Server error during registration", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
@@ -95,7 +95,7 @@ public class AuthController {
             
         } catch (IllegalArgumentException e) {
             log.warn("Login failed: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(AuthResponseDto.error(e.getMessage()));
+            return ResponseEntity.badRequest().body(AuthResponseDto.error(ResponseMessages.ERROR_INVALID_INPUT));
         } catch (Exception e) {
             log.error("Server error during login", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
@@ -141,10 +141,11 @@ public class AuthController {
     public ResponseEntity<?> checkUsername(@RequestParam String username) {
         try {
             boolean exist = userService.isUsernameExists(username);
-            return ResponseEntity.ok(Map.of(
+            Map<String, Object> data = Map.of(
                 "exist", exist,
                 "message", exist ? ResponseMessages.ERROR_USERNAME_EXISTS : "Username is available"
-            ));
+            );
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
         } catch (Exception e) {
             log.error("Error checking username availability", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
@@ -158,10 +159,11 @@ public class AuthController {
     public ResponseEntity<?> checkEmail(@RequestParam String email) {
         try {
             boolean exist = userService.isEmailExists(email);
-            return ResponseEntity.ok(Map.of(
+            Map<String, Object> data = Map.of(
                 "exist", exist,
                 "message", exist ? ResponseMessages.ERROR_EMAIL_EXISTS : "Email is available"
-            ));
+            );
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
         } catch (Exception e) {
             log.error("Error checking email availability", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
