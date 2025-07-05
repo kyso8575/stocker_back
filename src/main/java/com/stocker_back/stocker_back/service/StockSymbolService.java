@@ -279,4 +279,22 @@ public class StockSymbolService {
     public Set<String> findAllSp500Symbols() {
         return stockSymbolRepository.findAllSp500Symbols();
     }
+    
+    /**
+     * 특정 심볼이 이미 존재하는지 확인
+     * @param symbol 확인할 심볼
+     * @return 존재 여부
+     */
+    public boolean symbolExists(String symbol) {
+        return stockSymbolRepository.existsBySymbol(symbol.toUpperCase());
+    }
+    
+    /**
+     * 특정 심볼 조회
+     * @param symbol 조회할 심볼
+     * @return StockSymbol Optional
+     */
+    public java.util.Optional<StockSymbol> findBySymbol(String symbol) {
+        return stockSymbolRepository.findBySymbol(symbol.toUpperCase());
+    }
 } 

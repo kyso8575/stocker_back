@@ -7,6 +7,7 @@ import com.stocker_back.stocker_back.dto.FinancialMetricsDTO;
 import com.stocker_back.stocker_back.dto.FinancialMetricsResult;
 import com.stocker_back.stocker_back.repository.FinancialMetricsRepository;
 import com.stocker_back.stocker_back.repository.StockSymbolRepository;
+import com.stocker_back.stocker_back.util.DateUtils;
 import com.stocker_back.stocker_back.util.FinnhubApiClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -14,9 +15,11 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * 재무 지표 관련 기능을 담당하는 서비스
@@ -29,17 +32,99 @@ public class FinancialMetricsService {
     private final StockSymbolRepository stockSymbolRepository;
     private final FinnhubApiClient finnhubApiClient;
     private final CompanyProfileService companyProfileService;
+    private final DateUtils dateUtils;
     
     public FinancialMetricsService(
         FinancialMetricsRepository financialMetricsRepository,
         StockSymbolRepository stockSymbolRepository,
         FinnhubApiClient finnhubApiClient,
-        CompanyProfileService companyProfileService) {
+        CompanyProfileService companyProfileService,
+        DateUtils dateUtils) {
         this.financialMetricsRepository = financialMetricsRepository;
         this.stockSymbolRepository = stockSymbolRepository;
         this.finnhubApiClient = finnhubApiClient;
         this.companyProfileService = companyProfileService;
+        this.dateUtils = dateUtils;
     }
+    
+    // ==================== 조회 메서드들 ====================
+    
+    /**
+     * 특정 심볼의 최신 재무 지표 조회
+     */
+    public Optional<FinancialMetrics> getLatestFinancialMetrics(String symbol) {
+        return financialMetricsRepository.findTopBySymbolOrderByCreatedAtDesc(symbol.toUpperCase());
+    }
+    
+    /**
+     * 특정 심볼의 재무 지표 기록 조회 (날짜 범위 포함)
+     */
+    public List<FinancialMetrics> getFinancialMetricsHistory(String symbol, String from, String to) {
+        LocalDateTime fromDate = null;
+        LocalDateTime toDate = null;
+        
+        // 날짜 범위가 지정된 경우
+        if ((from != null && !from.isEmpty()) || (to != null && !to.isEmpty())) {
+            fromDate = dateUtils.parseDateTime(from, true);
+            toDate = dateUtils.parseDateTime(to, false);
+            
+            log.info("Querying financial metrics history with date range: {} to {}", fromDate, toDate);
+            
+            return financialMetricsRepository.findBySymbolAndCreatedAtBetweenOrderByCreatedAtDesc(
+                    symbol.toUpperCase(), fromDate, toDate);
+        } else {
+            // 날짜 범위가 지정되지 않은 경우 모든 기록 조회
+            log.info("Querying all financial metrics history for symbol: {}", symbol);
+            return financialMetricsRepository.findBySymbolOrderByCreatedAtDesc(symbol.toUpperCase());
+        }
+    }
+    
+    /**
+     * S&P 500 재무 지표 조회 (오늘 또는 최근 날짜)
+     */
+    public Map<String, Object> getSp500FinancialMetrics() {
+        LocalDate today = LocalDate.now();
+        List<FinancialMetrics> metricsList = financialMetricsRepository.findSp500FinancialMetricsByDate(today);
+        
+        // 오늘 데이터가 있으면 반환
+        if (!metricsList.isEmpty()) {
+            log.info("Retrieved {} S&P 500 financial metrics for today ({})", metricsList.size(), today);
+            return Map.of(
+                "data", metricsList,
+                "count", metricsList.size(),
+                "date", today.toString(),
+                "isToday", true
+            );
+        }
+        
+        // 오늘 데이터가 없으면 가장 최근 날짜의 데이터 조회
+        Optional<LocalDate> mostRecentDate = financialMetricsRepository.findMostRecentSp500MetricsDate();
+        
+        if (mostRecentDate.isPresent()) {
+            LocalDate recentDate = mostRecentDate.get();
+            metricsList = financialMetricsRepository.findSp500FinancialMetricsByDate(recentDate);
+            
+            log.info("No data for today. Retrieved {} S&P 500 financial metrics from {}", 
+                    metricsList.size(), recentDate);
+            
+            return Map.of(
+                "data", metricsList,
+                "count", metricsList.size(),
+                "date", recentDate.toString(),
+                "isToday", false
+            );
+        } else {
+            log.warn("No S&P 500 financial metrics found in database");
+            return Map.of(
+                "data", new ArrayList<FinancialMetrics>(),
+                "count", 0,
+                "date", today.toString(),
+                "isToday", true
+            );
+        }
+    }
+    
+    // ==================== 기존 메서드들 ====================
     
     /**
      * 특정 주식 심볼에 대한 기본 재무 지표를 Finnhub API에서 가져와 저장

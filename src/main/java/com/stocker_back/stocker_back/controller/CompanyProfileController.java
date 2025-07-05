@@ -1,6 +1,9 @@
 package com.stocker_back.stocker_back.controller;
 
+import com.stocker_back.stocker_back.constant.ResponseMessages;
 import com.stocker_back.stocker_back.domain.StockSymbol;
+import com.stocker_back.stocker_back.dto.AuthResponseDto;
+import com.stocker_back.stocker_back.dto.CompanyProfileDTO;
 import com.stocker_back.stocker_back.repository.StockSymbolRepository;
 import com.stocker_back.stocker_back.service.CompanyProfileService;
 import lombok.RequiredArgsConstructor;
@@ -12,13 +15,17 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/api/company-profiles")  // stocks 제거
+@RequestMapping("/api/company-profiles")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Company Profile", description = "회사 프로필 API (일반 사용자용)")
@@ -26,7 +33,7 @@ public class CompanyProfileController {
 
     private final CompanyProfileService companyProfileService;
     private final StockSymbolRepository stockSymbolRepository;
-
+    
     @Operation(
         summary = "단일 회사 프로필 조회",
         description = "특정 주식 심볼의 회사 프로필 정보를 조회합니다."
@@ -37,44 +44,30 @@ public class CompanyProfileController {
         @ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @GetMapping("/{symbol}")
-    public ResponseEntity<Map<String, Object>> getCompanyProfile(@PathVariable String symbol) {
+    public ResponseEntity<?> getCompanyProfile(@PathVariable String symbol) {
         log.info("Received request to get company profile for symbol: {}", symbol);
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("symbol", symbol);
-        
         try {
-            // 데이터베이스에서 심볼 정보 조회
             Optional<StockSymbol> stockSymbolOpt = stockSymbolRepository.findBySymbol(symbol.toUpperCase());
             
-            if (stockSymbolOpt.isPresent()) {
-                StockSymbol stockSymbol = stockSymbolOpt.get();
-                
-                // 프로필이 비어있는 경우
-                if (stockSymbol.isProfileEmpty()) {
-                    response.put("success", false);
-                    response.put("message", String.format("No profile information available for %s", symbol));
-                    return ResponseEntity.ok(response);
-                }
-                
-                response.put("success", true);
-                response.put("data", stockSymbol);
-                response.put("message", String.format("Successfully retrieved company profile for %s", symbol));
-                
-                return ResponseEntity.ok(response);
-            } else {
-                response.put("success", false);
-                response.put("message", String.format("Symbol %s not found in database", symbol));
-                
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            if (stockSymbolOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(AuthResponseDto.error(ResponseMessages.format("Symbol %s not found in database", symbol)));
             }
+            
+            StockSymbol stockSymbol = stockSymbolOpt.get();
+            
+            if (stockSymbol.isProfileEmpty()) {
+                return ResponseEntity.ok(AuthResponseDto.error(ResponseMessages.format("No profile information available for %s", symbol)));
+            }
+            
+            CompanyProfileDTO profileData = convertToCompanyProfileDTO(stockSymbol);
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("profile", profileData)));
+            
         } catch (Exception e) {
-            log.error("Error retrieving company profile for symbol {}: {}", symbol, e.getMessage());
-            
-            response.put("success", false);
-            response.put("error", e.getMessage());
-            
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+            log.error("Error retrieving company profile for symbol: {}", symbol, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
     }
 
@@ -88,45 +81,33 @@ public class CompanyProfileController {
         @ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
         @ApiResponse(responseCode = "500", description = "서버 오류")
     })
-    @PostMapping("/admin/symbol/{symbol}")  // 관리자용 경로
-    public ResponseEntity<Map<String, Object>> fetchCompanyProfile(@PathVariable String symbol) {
-        
+    @PostMapping("/admin/symbol/{symbol}")
+    public ResponseEntity<?> fetchCompanyProfile(@PathVariable String symbol) {
         log.info("Processing company profile for symbol: {}", symbol);
         
         try {
             StockSymbol updatedSymbol = companyProfileService.fetchAndSaveSingleCompanyProfile(symbol);
             
-            Map<String, Object> response = new HashMap<>();
-            
-            if (updatedSymbol != null) {
-                response.put("success", true);
-                response.put("data", updatedSymbol);
-                
-                // 프로필이 비어있지 않은 경우에만 응답에 포함
-                if (!updatedSymbol.isProfileEmpty()) {
-                    response.put("message", String.format("Successfully updated company profile for %s", symbol));
-                    return ResponseEntity.status(HttpStatus.CREATED).body(response);
-                } else {
-                    response.put("message", String.format("No profile data found for %s, marked as empty", symbol));
-                    response.put("isEmpty", true);
-                    return ResponseEntity.ok(response);
-                }
-            } else {
-                response.put("success", false);
-                response.put("symbol", symbol);
-                response.put("message", String.format("Symbol %s not found in database", symbol));
-                
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            if (updatedSymbol == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(AuthResponseDto.error(ResponseMessages.format("Symbol %s not found in database", symbol)));
             }
+            
+            if (!updatedSymbol.isProfileEmpty()) {
+                CompanyProfileDTO profileData = convertToCompanyProfileDTO(updatedSymbol);
+                return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("profile", profileData)));
+            } else {
+                Map<String, Object> responseData = new HashMap<>();
+                responseData.put("symbol", symbol);
+                responseData.put("isEmpty", true);
+                return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, responseData));
+            }
+            
         } catch (Exception e) {
             log.error("Error fetching company profile for symbol {}: ", symbol, e);
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", false);
-            response.put("symbol", symbol);
-            response.put("error", e.getMessage());
-            
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
     }
 
@@ -141,7 +122,7 @@ public class CompanyProfileController {
         @ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PostMapping("/admin/batch")
-    public ResponseEntity<Map<String, Object>> fetchCompanyProfilesBatch(
+    public ResponseEntity<?> fetchCompanyProfilesBatch(
             @RequestParam(defaultValue = "20") int batchSize,
             @RequestParam(defaultValue = "0") int delayMs) {
         
@@ -150,27 +131,21 @@ public class CompanyProfileController {
         try {
             int updatedCount = companyProfileService.fetchAndSaveAllCompanyProfiles(batchSize, delayMs);
             
-            // 빈 프로필과 유효한 프로필 개수 조회
             long validProfilesCount = stockSymbolRepository.countByProfileEmptyFalse();
             long emptyProfilesCount = stockSymbolRepository.countByProfileEmptyTrue();
             
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("totalProcessed", updatedCount);
-            response.put("validProfiles", validProfilesCount);
-            response.put("emptyProfiles", emptyProfilesCount);
-            response.put("message", String.format("Successfully processed %d company profiles (valid: %d, empty: %d)", 
-                    updatedCount, validProfilesCount, emptyProfilesCount));
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("totalProcessed", updatedCount);
+            responseData.put("validProfiles", validProfilesCount);
+            responseData.put("emptyProfiles", emptyProfilesCount);
             
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                .body(AuthResponseDto.success(ResponseMessages.format(ResponseMessages.TEMPLATE_PROCESSED_ITEMS, updatedCount), responseData));
+            
         } catch (Exception e) {
             log.error("Error fetching company profiles: ", e);
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", false);
-            response.put("error", e.getMessage());
-            
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
     }
 
@@ -184,8 +159,8 @@ public class CompanyProfileController {
         @ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
         @ApiResponse(responseCode = "500", description = "서버 오류")
     })
-    @PostMapping("/admin/sp500")  // S&P 500 관련 경로 수정
-    public ResponseEntity<Map<String, Object>> fetchSp500CompanyProfiles(
+    @PostMapping("/admin/sp500")
+    public ResponseEntity<?> fetchSp500CompanyProfiles(
             @RequestParam(defaultValue = "20") int batchSize,
             @RequestParam(defaultValue = "0") int delayMs) {
         
@@ -194,27 +169,182 @@ public class CompanyProfileController {
         try {
             int updatedCount = companyProfileService.fetchAndSaveSp500CompanyProfiles(batchSize, delayMs);
             
-            // S&P 500 중 빈 프로필과 유효한 프로필 개수 조회
             long validSp500ProfilesCount = stockSymbolRepository.countByIsSp500TrueAndProfileEmptyFalse();
             long emptySp500ProfilesCount = stockSymbolRepository.countByIsSp500TrueAndProfileEmptyTrue();
             
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("totalProcessed", updatedCount);
-            response.put("validSp500Profiles", validSp500ProfilesCount);
-            response.put("emptySp500Profiles", emptySp500ProfilesCount);
-            response.put("message", String.format("Successfully processed %d S&P 500 company profiles (valid: %d, empty: %d)", 
-                    updatedCount, validSp500ProfilesCount, emptySp500ProfilesCount));
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("totalProcessed", updatedCount);
+            responseData.put("validSp500Profiles", validSp500ProfilesCount);
+            responseData.put("emptySp500Profiles", emptySp500ProfilesCount);
             
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                .body(AuthResponseDto.success(ResponseMessages.format(ResponseMessages.TEMPLATE_BATCH_PROCESSED, updatedCount, "S&P 500"), responseData));
+            
         } catch (Exception e) {
             log.error("Error fetching S&P 500 company profiles: ", e);
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", false);
-            response.put("error", e.getMessage());
-            
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
+    }
+    
+    @Operation(
+        summary = "회사 프로필 업데이트",
+        description = "특정 주식 심볼의 회사 프로필을 업데이트합니다."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "업데이트 성공",
+            content = @Content(schema = @Schema(implementation = CompanyProfileDTO.class))
+        ),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    @PutMapping("/{symbol}")
+    public ResponseEntity<?> updateCompanyProfile(
+        @PathVariable String symbol) {
+        
+        log.info("Received request to update company profile for symbol: {}", symbol);
+        
+        try {
+            StockSymbol updatedSymbol = companyProfileService.fetchAndSaveSingleCompanyProfile(symbol);
+            
+            if (updatedSymbol != null) {
+                CompanyProfileDTO profileData = convertToCompanyProfileDTO(updatedSymbol);
+                return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("profile", profileData)));
+            } else {
+                Map<String, Object> responseData = new HashMap<>();
+                responseData.put("symbol", symbol);
+                responseData.put("isEmpty", true);
+                return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, responseData));
+            }
+            
+        } catch (Exception e) {
+            log.error("Error fetching company profile for symbol {}: ", symbol, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+        }
+    }
+    
+    @Operation(
+        summary = "배치 회사 프로필 처리",
+        description = "여러 주식 심볼의 회사 프로필을 배치로 처리합니다."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "배치 처리 성공",
+            content = @Content(schema = @Schema(implementation = Map.class))
+        ),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    @PostMapping("/batch")
+    public ResponseEntity<?> processBatchCompanyProfiles(
+        @RequestBody List<String> symbols) {
+        
+        log.info("Received request to process batch company profiles for {} symbols", symbols.size());
+        
+        try {
+            // Convert symbols to StockSymbol entities and process them
+            List<StockSymbol> stockSymbols = new ArrayList<>();
+            for (String symbol : symbols) {
+                Optional<StockSymbol> stockSymbolOpt = stockSymbolRepository.findBySymbol(symbol.toUpperCase());
+                if (stockSymbolOpt.isPresent()) {
+                    stockSymbols.add(stockSymbolOpt.get());
+                }
+            }
+            
+            int updatedCount = 0;
+            for (StockSymbol stockSymbol : stockSymbols) {
+                StockSymbol updated = companyProfileService.fetchAndSaveSingleCompanyProfile(stockSymbol.getSymbol());
+                if (updated != null) {
+                    updatedCount++;
+                }
+            }
+            
+            long validProfilesCount = stockSymbolRepository.countByProfileEmptyFalse();
+            long emptyProfilesCount = stockSymbolRepository.countByProfileEmptyTrue();
+            
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("updatedCount", updatedCount);
+            responseData.put("validProfilesCount", validProfilesCount);
+            responseData.put("emptyProfilesCount", emptyProfilesCount);
+            responseData.put("symbols", symbols);
+            
+            return ResponseEntity.status(HttpStatus.CREATED)
+                .body(AuthResponseDto.success(
+                    ResponseMessages.format(ResponseMessages.TEMPLATE_PROCESSED_ITEMS, updatedCount),
+                    responseData
+                ));
+            
+        } catch (Exception e) {
+            log.error("Error fetching company profiles: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+        }
+    }
+    
+    @Operation(
+        summary = "S&P 500 회사 프로필 처리",
+        description = "S&P 500 지수의 모든 회사 프로필을 처리합니다."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "S&P 500 처리 성공",
+            content = @Content(schema = @Schema(implementation = Map.class))
+        ),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    @PostMapping("/sp500")
+    public ResponseEntity<?> processSp500CompanyProfiles() {
+        log.info("Received request to process S&P 500 company profiles");
+        
+        try {
+            int updatedCount = companyProfileService.fetchAndSaveSp500CompanyProfiles(20, 0);
+            
+            long validSp500ProfilesCount = stockSymbolRepository.countByIsSp500TrueAndProfileEmptyFalse();
+            long emptySp500ProfilesCount = stockSymbolRepository.countByIsSp500TrueAndProfileEmptyTrue();
+            
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("updatedCount", updatedCount);
+            responseData.put("validSp500ProfilesCount", validSp500ProfilesCount);
+            responseData.put("emptySp500ProfilesCount", emptySp500ProfilesCount);
+            
+            return ResponseEntity.status(HttpStatus.CREATED)
+                .body(AuthResponseDto.success(
+                    ResponseMessages.format(ResponseMessages.TEMPLATE_BATCH_PROCESSED, updatedCount, "S&P 500"),
+                    responseData
+                ));
+            
+        } catch (Exception e) {
+            log.error("Error fetching S&P 500 company profiles: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+        }
+    }
+    
+    // ========== Private Helper Methods ==========
+    
+    /**
+     * StockSymbol 엔티티를 CompanyProfileDTO로 변환
+     */
+    private CompanyProfileDTO convertToCompanyProfileDTO(StockSymbol stockSymbol) {
+        return CompanyProfileDTO.builder()
+                .symbol(stockSymbol.getSymbol())
+                .name(stockSymbol.getName())
+                .country(stockSymbol.getCountry())
+                .currency(stockSymbol.getCurrency())
+                .estimateCurrency(stockSymbol.getEstimateCurrency())
+                .exchange(stockSymbol.getExchange())
+                .finnhubIndustry(stockSymbol.getFinnhubIndustry())
+                .ipo(stockSymbol.getIpo())
+                .logo(stockSymbol.getLogo())
+                .phone(stockSymbol.getPhone())
+                .shareOutstanding(stockSymbol.getShareOutstanding())
+                .weburl(stockSymbol.getWeburl())
+                .build();
     }
 } 

@@ -1,5 +1,7 @@
 package com.stocker_back.stocker_back.controller;
 
+import com.stocker_back.stocker_back.constant.ResponseMessages;
+import com.stocker_back.stocker_back.dto.AuthResponseDto;
 import com.stocker_back.stocker_back.dto.CompanyNewsDTO;
 import com.stocker_back.stocker_back.service.NewsService;
 import lombok.RequiredArgsConstructor;
@@ -8,9 +10,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.time.LocalDate;
+import org.springframework.format.annotation.DateTimeFormat;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
 @RestController
 @RequestMapping("/api/news")
@@ -29,8 +37,21 @@ public class NewsController {
      * @param count 반환할 뉴스 항목 수 제한 (선택사항)
      * @return 회사 뉴스 데이터와 성공 여부
      */
+    @Operation(
+        summary = "회사 뉴스 조회",
+        description = "특정 주식 심볼의 회사 뉴스를 조회합니다."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "조회 성공",
+            content = @Content(schema = @Schema(implementation = CompanyNewsDTO.class))
+        ),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
     @GetMapping("/companies/{symbol}")
-    public ResponseEntity<Map<String, Object>> getCompanyNews(
+    public ResponseEntity<?> getCompanyNews(
             @PathVariable String symbol,
             @RequestParam String from,
             @RequestParam String to,
@@ -39,46 +60,33 @@ public class NewsController {
         log.info("Received request to get company news for symbol: {}, from: {}, to: {}, count: {}", 
                 symbol, from, to, count);
         
-        // count 파라미터 검증
-        if (count != null && count <= 0) {
-                    Map<String, Object> errorResponse = new HashMap<>();
-                    errorResponse.put("success", false);
-                    errorResponse.put("error", "Parameter 'count' must be a positive integer");
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        if (count <= 0) {
+            return ResponseEntity.badRequest().body(AuthResponseDto.error(
+                ResponseMessages.ERROR_INVALID_INPUT
+            ));
         }
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("symbol", symbol);
-        response.put("from", from);
-        response.put("to", to);
         
         try {
             List<CompanyNewsDTO> newsItems = newsService.fetchCompanyNews(symbol, from, to, count);
             
-            response.put("success", true);
-            response.put("data", newsItems);
-            response.put("count", newsItems.size());
+            String message = newsItems.isEmpty() ? 
+                ResponseMessages.format("No news found for %s in date range %s to %s", symbol, from, to) :
+                ResponseMessages.format("Successfully fetched %d news items for %s", newsItems.size(), symbol);
             
-            if (newsItems.isEmpty()) {
-                response.put("message", String.format("No news found for %s in date range %s to %s", 
-                        symbol, from, to));
-                return ResponseEntity.ok(response);
-            } else {
-                response.put("message", String.format("Successfully fetched %d news items for %s", 
-                        newsItems.size(), symbol));
-            return ResponseEntity.ok(response);
-            }
+            Map<String, Object> data = Map.of(
+                "symbol", symbol.toUpperCase(),
+                "data", newsItems,
+                "count", newsItems.size(),
+                "from", from,
+                "to", to
+            );
             
-        } catch (IllegalArgumentException e) {
-            log.warn("Invalid parameters for company news request: {}", e.getMessage());
-            response.put("success", false);
-            response.put("error", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            return ResponseEntity.ok(AuthResponseDto.success(message, data));
+            
         } catch (Exception e) {
-            log.error("Error getting company news for symbol {}: ", symbol, e);
-            response.put("success", false);
-            response.put("error", "Failed to fetch company news: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+            log.error("Error retrieving company news", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
     }
 
@@ -90,54 +98,53 @@ public class NewsController {
      * @param count 반환할 뉴스 항목 수 제한 (선택사항)
      * @return 시장 뉴스 데이터와 성공 여부
      */
+    @Operation(
+        summary = "시장 뉴스 조회",
+        description = "특정 날짜 범위의 시장 뉴스를 조회합니다."
+    )
+    @ApiResponses(value = {
+        @ApiResponse(
+            responseCode = "200",
+            description = "조회 성공",
+            content = @Content(schema = @Schema(implementation = CompanyNewsDTO.class))
+        ),
+        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        @ApiResponse(responseCode = "500", description = "서버 오류")
+    })
     @GetMapping("/market")
-    public ResponseEntity<Map<String, Object>> getMarketNews(
-            @RequestParam String from,
-            @RequestParam String to,
-            @RequestParam(required = false) Integer count) {
+    public ResponseEntity<?> getMarketNews(
+        @RequestParam String from,
+        @RequestParam String to,
+        @RequestParam(required = false) Integer count) {
         
-        log.info("Received request to get market news from: {}, to: {}, count: {}", 
-                from, to, count);
-        
-        // count 파라미터 검증
-        if (count != null && count <= 0) {
-                    Map<String, Object> errorResponse = new HashMap<>();
-                    errorResponse.put("success", false);
-                    errorResponse.put("error", "Parameter 'count' must be a positive integer");
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
-        }
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("from", from);
-        response.put("to", to);
+        log.info("Received request to get market news from {} to {} with count: {}", from, to, count);
         
         try {
-            List<CompanyNewsDTO> newsItems = newsService.fetchMarketNews(from, to, count);
-            
-            response.put("success", true);
-            response.put("data", newsItems);
-            response.put("count", newsItems.size());
-            
-            if (newsItems.isEmpty()) {
-                response.put("message", String.format("No market news found in date range %s to %s", 
-                        from, to));
-                return ResponseEntity.ok(response);
-            } else {
-                response.put("message", String.format("Successfully fetched %d market news items", 
-                        newsItems.size()));
-            return ResponseEntity.ok(response);
+            if (count != null && count <= 0) {
+                return ResponseEntity.badRequest().body(AuthResponseDto.error(
+                    ResponseMessages.ERROR_INVALID_INPUT
+                ));
             }
             
-        } catch (IllegalArgumentException e) {
-            log.warn("Invalid parameters for market news request: {}", e.getMessage());
-            response.put("success", false);
-            response.put("error", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            List<CompanyNewsDTO> newsItems = newsService.fetchMarketNews(from, to, count);
+            
+            String message = newsItems.isEmpty() ? 
+                ResponseMessages.format("No market news found in date range %s to %s", from, to) :
+                ResponseMessages.format("Successfully fetched %d market news items", newsItems.size());
+            
+            Map<String, Object> data = Map.of(
+                "data", newsItems,
+                "count", newsItems.size(),
+                "from", from,
+                "to", to
+            );
+            
+            return ResponseEntity.ok(AuthResponseDto.success(message, data));
+            
         } catch (Exception e) {
-            log.error("Error getting market news: ", e);
-            response.put("success", false);
-            response.put("error", "Failed to fetch market news: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+            log.error("Error retrieving market news", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
     }
 } 

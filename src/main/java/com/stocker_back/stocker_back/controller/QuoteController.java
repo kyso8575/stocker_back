@@ -1,6 +1,8 @@
 package com.stocker_back.stocker_back.controller;
 
+import com.stocker_back.stocker_back.constant.ResponseMessages;
 import com.stocker_back.stocker_back.domain.Quote;
+import com.stocker_back.stocker_back.dto.AuthResponseDto;
 import com.stocker_back.stocker_back.service.QuoteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +14,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -35,31 +36,31 @@ public class QuoteController {
         @ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PostMapping("/admin/sp500")
-    public ResponseEntity<Map<String, Object>> fetchSp500Quotes(
+    public ResponseEntity<?> fetchSp500Quotes(
             @RequestParam(defaultValue = "20") int batchSize,
             @RequestParam(defaultValue = "0") int delayMs) {
         
         log.info("Received request to fetch quotes for S&P 500 symbols with batchSize={}, delayMs={}", 
                 batchSize, delayMs);
         
-        Map<String, Object> response = new HashMap<>();
-        
         try {
             int savedCount = quoteService.fetchAndSaveSp500Quotes(batchSize, delayMs);
             
-            response.put("success", true);
-            response.put("processedCount", savedCount);
-            response.put("batchSize", batchSize);
-            response.put("delayMs", delayMs);
-            response.put("estimatedTime", String.format("%.1f minutes", (savedCount / 60.0)));
-            response.put("message", String.format("Successfully processed quotes for %d S&P 500 symbols (batch size: %d)", savedCount, batchSize));
+            Map<String, Object> data = Map.of(
+                "processedCount", savedCount,
+                "batchSize", batchSize,
+                "delayMs", delayMs,
+                "estimatedTime", String.format("%.1f minutes", (savedCount / 60.0))
+            );
             
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(
+                ResponseMessages.format(ResponseMessages.TEMPLATE_PROCESSED_ITEMS, savedCount),
+                data
+            ));
         } catch (Exception e) {
             log.error("Error fetching S&P 500 quotes: {}", e.getMessage());
-            response.put("success", false);
-            response.put("error", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
     }
 
@@ -74,30 +75,29 @@ public class QuoteController {
         @ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PostMapping("/admin/symbol/{symbol}")
-    public ResponseEntity<Map<String, Object>> fetchQuote(@PathVariable String symbol) {
+    public ResponseEntity<?> fetchQuote(@PathVariable String symbol) {
         log.info("Received request to fetch quote for symbol: {}", symbol);
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("symbol", symbol);
         
         try {
             Quote savedQuote = quoteService.fetchAndSaveQuote(symbol);
             
             if (savedQuote != null) {
-                response.put("success", true);
-                response.put("data", savedQuote);
-                response.put("message", String.format("Successfully fetched quote for %s", symbol));
-                return ResponseEntity.status(HttpStatus.CREATED).body(response);
+                return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(
+                    ResponseMessages.format("Quote fetched for %s", symbol),
+                    Map.of(
+                        "symbol", symbol,
+                        "data", savedQuote
+                    )
+                ));
             } else {
-                response.put("success", false);
-                response.put("message", String.format("No quote data available for %s", symbol));
-                return ResponseEntity.ok(response);
+                return ResponseEntity.ok(AuthResponseDto.error(
+                    ResponseMessages.format("No quote data available for %s", symbol)
+                ));
             }
         } catch (Exception e) {
             log.error("Error fetching quote for symbol {}: {}", symbol, e.getMessage());
-            response.put("success", false);
-            response.put("error", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
     }
 } 

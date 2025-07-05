@@ -1,8 +1,9 @@
 package com.stocker_back.stocker_back.controller;
 
+import com.stocker_back.stocker_back.constant.ResponseMessages;
 import com.stocker_back.stocker_back.domain.Trade;
-import com.stocker_back.stocker_back.service.MultiKeyFinnhubWebSocketService;
-import com.stocker_back.stocker_back.repository.TradeRepository;
+import com.stocker_back.stocker_back.dto.AuthResponseDto;
+import com.stocker_back.stocker_back.service.TradeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -31,8 +32,7 @@ import java.util.Map;
 @Tag(name = "Trade", description = "거래 데이터 및 웹소켓 관리 API")
 public class TradeController {
     
-    private final MultiKeyFinnhubWebSocketService multiKeyWebSocketService;
-    private final TradeRepository tradeRepository;
+    private final TradeService tradeService;
     
     // ===== 거래 데이터 조회 API =====
     
@@ -40,39 +40,35 @@ public class TradeController {
      * 특정 심볼의 최신 거래 데이터 조회
      */
     @GetMapping("/latest/{symbol}")
-    public ResponseEntity<Map<String, Object>> getLatestTradesBySymbol(
+    public ResponseEntity<?> getLatestTradesBySymbol(
             @PathVariable String symbol,
             @RequestParam(defaultValue = "10") int limit) {
+        log.info("Received request to get latest trades for symbol: {} with limit: {}", symbol, limit);
+        
         try {
-            List<Trade> trades = tradeRepository.findLatestTradesBySymbol(symbol.toUpperCase());
-            List<Trade> limitedTrades = trades.stream().limit(limit).toList();
+            List<Trade> trades = tradeService.getLatestTradesBySymbol(symbol, limit);
             
-            if (limitedTrades.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
-                    "success", false,
-                    "symbol", symbol.toUpperCase(),
-                    "message", "No trade data found for symbol " + symbol.toUpperCase(),
-                    "timestamp", LocalDateTime.now()
+            if (trades.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(
+                    ResponseMessages.format(ResponseMessages.TEMPLATE_NOT_FOUND_FOR_SYMBOL, symbol.toUpperCase())
                 ));
             }
             
-            return ResponseEntity.ok(Map.of(
-                "success", true,
+            Map<String, Object> data = Map.of(
                 "symbol", symbol.toUpperCase(),
-                "data", limitedTrades,
-                "count", limitedTrades.size(),
-                "limit", limit,
-                "message", "Successfully retrieved latest trade data for " + symbol.toUpperCase(),
-                "timestamp", LocalDateTime.now()
+                "data", trades,
+                "count", trades.size(),
+                "limit", limit
+            );
+            
+            return ResponseEntity.ok(AuthResponseDto.success(
+                ResponseMessages.format(ResponseMessages.TEMPLATE_RETRIEVED_FOR_SYMBOL, symbol.toUpperCase()),
+                data
             ));
         } catch (Exception e) {
             log.error("Failed to get latest trades for symbol: {}", symbol, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                "success", false,
-                "symbol", symbol.toUpperCase(),
-                "error", "Failed to retrieve trade data: " + e.getMessage(),
-                "timestamp", LocalDateTime.now()
-            ));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
     }
     
@@ -80,35 +76,32 @@ public class TradeController {
      * 특정 심볼의 최신 가격 조회
      */
     @GetMapping("/{symbol}/price")
-    public ResponseEntity<Map<String, Object>> getLatestPrice(@PathVariable String symbol) {
+    public ResponseEntity<?> getLatestPrice(@PathVariable String symbol) {
+        log.info("Received request to get latest price for symbol: {}", symbol);
+        
         try {
-            BigDecimal latestPrice = tradeRepository.findLatestPriceBySymbol(symbol.toUpperCase());
+            BigDecimal latestPrice = tradeService.getLatestPriceBySymbol(symbol);
             
             if (latestPrice == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
-                    "success", false,
-                    "symbol", symbol.toUpperCase(),
-                    "message", "No price data found for symbol " + symbol.toUpperCase(),
-                    "timestamp", LocalDateTime.now()
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(
+                    ResponseMessages.format(ResponseMessages.TEMPLATE_NOT_FOUND_FOR_SYMBOL, symbol.toUpperCase())
                 ));
             }
             
-            return ResponseEntity.ok(Map.of(
-                "success", true,
+            Map<String, Object> data = Map.of(
                 "symbol", symbol.toUpperCase(),
                 "price", latestPrice,
-                "currency", "USD",
-                "message", "Successfully retrieved latest price for " + symbol.toUpperCase(),
-                "timestamp", LocalDateTime.now()
+                "currency", "USD"
+            );
+            
+            return ResponseEntity.ok(AuthResponseDto.success(
+                ResponseMessages.format(ResponseMessages.TEMPLATE_RETRIEVED_FOR_SYMBOL, symbol.toUpperCase()),
+                data
             ));
         } catch (Exception e) {
             log.error("Failed to get latest price for symbol: {}", symbol, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                "success", false,
-                "symbol", symbol.toUpperCase(),
-                "error", "Failed to retrieve price data: " + e.getMessage(),
-                "timestamp", LocalDateTime.now()
-            ));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
     }
     
@@ -116,41 +109,31 @@ public class TradeController {
      * 시간 범위별 거래 데이터 조회
      */
     @GetMapping("/history")
-    public ResponseEntity<Map<String, Object>> getTradeHistory(
+    public ResponseEntity<?> getTradeHistory(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(required = false) String symbol) {
+        log.info("Received request to get trade history from {} to {} for symbol: {}", from, to, symbol);
+        
         try {
-            List<Trade> trades;
-            if (symbol != null && !symbol.isEmpty()) {
-                trades = tradeRepository.findTradesBetween(from, to)
-                        .stream()
-                        .filter(trade -> trade.getSymbol().equalsIgnoreCase(symbol))
-                        .toList();
-            } else {
-                trades = tradeRepository.findTradesBetween(from, to);
-            }
+            List<Trade> trades = tradeService.getTradeHistory(from, to, symbol);
             
-            return ResponseEntity.ok(Map.of(
-                "success", true,
+            Map<String, Object> data = Map.of(
                 "data", trades,
                 "count", trades.size(),
                 "from", from,
                 "to", to,
-                "symbol", symbol != null ? symbol.toUpperCase() : "All",
-                "message", String.format("Successfully retrieved %d trades within time range", trades.size()),
-                "timestamp", LocalDateTime.now()
+                "symbol", symbol != null ? symbol.toUpperCase() : "All"
+            );
+            
+            return ResponseEntity.ok(AuthResponseDto.success(
+                ResponseMessages.format(ResponseMessages.TEMPLATE_RETRIEVED_COUNT, trades.size()),
+                data
             ));
         } catch (Exception e) {
             log.error("Failed to get trade history", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                "success", false,
-                "error", "Failed to retrieve trade history: " + e.getMessage(),
-                "from", from,
-                "to", to,
-                "symbol", symbol,
-                "timestamp", LocalDateTime.now()
-            ));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
     }
     
@@ -169,17 +152,21 @@ public class TradeController {
         @ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @GetMapping("/websocket/status")
-    public ResponseEntity<Map<String, Object>> getWebSocketStatus() {
-        Map<String, Boolean> connectionStatus = multiKeyWebSocketService.getConnectionStatus();
-        return ResponseEntity.ok(Map.of(
-            "success", true,
-            "connections", connectionStatus,
-            "totalConnections", connectionStatus.size(),
-            "activeConnections", connectionStatus.values().stream().mapToLong(b -> b ? 1 : 0).sum(),
-            "anyConnected", multiKeyWebSocketService.isAnyConnected(),
-            "message", "WebSocket connection status retrieved successfully",
-            "timestamp", LocalDateTime.now()
-        ));
+    public ResponseEntity<?> getWebSocketStatus() {
+        log.info("Received request to get WebSocket status");
+        
+        try {
+            Map<String, Object> statusData = tradeService.getWebSocketStatus();
+            
+            return ResponseEntity.ok(AuthResponseDto.success(
+                ResponseMessages.SUCCESS,
+                statusData
+            ));
+        } catch (Exception e) {
+            log.error("Failed to get WebSocket status", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+        }
     }
     
     @Operation(
@@ -197,22 +184,21 @@ public class TradeController {
         @ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PostMapping("/websocket/admin/connect")
-    public ResponseEntity<Map<String, Object>> connectWebSocket() {
+    public ResponseEntity<?> connectWebSocket() {
+        log.info("Received request to connect WebSocket");
+        
         try {
-            multiKeyWebSocketService.connectAll();
-            return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
-                "success", true,
-                "message", "WebSocket connections initiated successfully",
-                "connections", multiKeyWebSocketService.getConnectionStatus(),
-                "timestamp", LocalDateTime.now()
+            tradeService.connectWebSocket();
+            Map<String, Object> statusData = tradeService.getWebSocketStatus();
+            
+            return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(
+                "WebSocket connections initiated successfully",
+                statusData
             ));
         } catch (Exception e) {
             log.error("Failed to connect WebSocket", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                "success", false,
-                "error", "Failed to connect WebSocket: " + e.getMessage(),
-                "timestamp", LocalDateTime.now()
-            ));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
     }
     
@@ -231,21 +217,19 @@ public class TradeController {
         @ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PostMapping("/websocket/admin/disconnect")
-    public ResponseEntity<Map<String, Object>> disconnectWebSocket() {
+    public ResponseEntity<?> disconnectWebSocket() {
+        log.info("Received request to disconnect WebSocket");
+        
         try {
-            multiKeyWebSocketService.disconnectAll();
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "WebSocket connections disconnected successfully",
-                "timestamp", LocalDateTime.now()
+            tradeService.disconnectWebSocket();
+            
+            return ResponseEntity.ok(AuthResponseDto.success(
+                "WebSocket connections disconnected successfully"
             ));
         } catch (Exception e) {
             log.error("Failed to disconnect WebSocket", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                "success", false,
-                "error", "Failed to disconnect WebSocket: " + e.getMessage(),
-                "timestamp", LocalDateTime.now()
-            ));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
     }
 } 

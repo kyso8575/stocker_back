@@ -1,5 +1,7 @@
 package com.stocker_back.stocker_back.controller;
 
+import com.stocker_back.stocker_back.constant.ResponseMessages;
+import com.stocker_back.stocker_back.dto.AuthResponseDto;
 import com.stocker_back.stocker_back.dto.WatchlistRequestDto;
 import com.stocker_back.stocker_back.dto.WatchlistResponseDto;
 import com.stocker_back.stocker_back.service.WatchlistService;
@@ -47,27 +49,29 @@ public class WatchlistController {
     })
     @GetMapping
     public ResponseEntity<?> getWatchlist(HttpServletRequest request) {
+        log.info("Received request to get watchlist");
+        
         try {
-            Long userId = (Long) request.getAttribute("userId");
-            
+            Long userId = getUserIdFromRequest(request);
             List<WatchlistResponseDto> watchlist = watchlistService.getUserWatchlist(userId);
             long totalCount = watchlistService.getWatchlistCount(userId);
             
             log.info("Retrieved watchlist for user: {}, count: {}", userId, totalCount);
             
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "관심 종목 목록을 성공적으로 조회했습니다",
+            Map<String, Object> data = Map.of(
                 "data", watchlist,
                 "totalCount", totalCount
+            );
+            
+            return ResponseEntity.ok(AuthResponseDto.success(
+                ResponseMessages.format(ResponseMessages.TEMPLATE_RETRIEVED_COUNT, totalCount),
+                data
             ));
             
         } catch (Exception e) {
             log.error("Error retrieving watchlist", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                "success", false,
-                "message", "서버 오류가 발생했습니다"
-            ));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
     }
     
@@ -89,11 +93,13 @@ public class WatchlistController {
     public ResponseEntity<?> addToWatchlist(
         @Parameter(description = "추가할 주식 정보", required = true)
         @Valid @RequestBody WatchlistRequestDto requestDto,
-                                          BindingResult bindingResult,
+        BindingResult bindingResult,
         HttpServletRequest request
     ) {
+        log.info("Received request to add stock to watchlist: {}", requestDto.getSymbol());
+        
         try {
-            Long userId = (Long) request.getAttribute("userId");
+            Long userId = getUserIdFromRequest(request);
             
             // 입력 검증 오류 확인
             if (bindingResult.hasErrors()) {
@@ -101,10 +107,9 @@ public class WatchlistController {
                 bindingResult.getFieldErrors().forEach(error -> 
                     errors.put(error.getField(), error.getDefaultMessage())
                 );
-                return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "message", "입력 값이 올바르지 않습니다",
-                    "errors", errors
+                return ResponseEntity.badRequest().body(AuthResponseDto.error(
+                    ResponseMessages.ERROR_INVALID_INPUT,
+                    errors
                 ));
             }
             
@@ -112,24 +117,18 @@ public class WatchlistController {
             
             log.info("Added stock to watchlist - userId: {}, symbol: {}", userId, requestDto.getSymbol());
             
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "관심 종목에 성공적으로 추가했습니다",
-                "data", result
+            return ResponseEntity.ok(AuthResponseDto.success(
+                ResponseMessages.SUCCESS_WATCHLIST_ADDED,
+                Map.of("data", result)
             ));
             
         } catch (IllegalArgumentException e) {
             log.warn("Failed to add to watchlist: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
-                "success", false,
-                "message", e.getMessage()
-            ));
+            return ResponseEntity.badRequest().body(AuthResponseDto.error(e.getMessage()));
         } catch (Exception e) {
             log.error("Error adding to watchlist", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                "success", false,
-                "message", "서버 오류가 발생했습니다"
-            ));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
     }
     
@@ -150,30 +149,26 @@ public class WatchlistController {
         @PathVariable String symbol,
         HttpServletRequest request
     ) {
+        log.info("Received request to remove stock from watchlist: {}", symbol);
+        
         try {
-            Long userId = (Long) request.getAttribute("userId");
+            Long userId = getUserIdFromRequest(request);
             
             watchlistService.removeFromWatchlist(userId, symbol);
             
             log.info("Removed stock from watchlist - userId: {}, symbol: {}", userId, symbol);
             
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "관심 종목에서 성공적으로 제거했습니다"
+            return ResponseEntity.ok(AuthResponseDto.success(
+                ResponseMessages.SUCCESS_WATCHLIST_REMOVED
             ));
             
         } catch (IllegalArgumentException e) {
             log.warn("Failed to remove from watchlist: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
-                "success", false,
-                "message", e.getMessage()
-            ));
+            return ResponseEntity.badRequest().body(AuthResponseDto.error(e.getMessage()));
         } catch (Exception e) {
             log.error("Error removing from watchlist", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                "success", false,
-                "message", "서버 오류가 발생했습니다"
-            ));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
     }
     
@@ -196,23 +191,27 @@ public class WatchlistController {
         @PathVariable String symbol,
         HttpServletRequest request
     ) {
+        log.info("Received request to check watchlist status for symbol: {}", symbol);
+        
         try {
-            Long userId = (Long) request.getAttribute("userId");
+            Long userId = getUserIdFromRequest(request);
             
             boolean exist = watchlistService.exist(userId, symbol);
             
-            return ResponseEntity.ok(Map.of(
-                "success", true,
+            Map<String, Object> data = Map.of(
                 "exist", exist,
                 "symbol", symbol.toUpperCase()
+            );
+            
+            return ResponseEntity.ok(AuthResponseDto.success(
+                ResponseMessages.SUCCESS,
+                data
             ));
             
         } catch (Exception e) {
             log.error("Error checking watchlist status", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                "success", false,
-                "message", "서버 오류가 발생했습니다"
-            ));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
     }
     
@@ -231,22 +230,29 @@ public class WatchlistController {
     })
     @GetMapping("/count")
     public ResponseEntity<?> getWatchlistCount(HttpServletRequest request) {
+        log.info("Received request to get watchlist count");
+        
         try {
-            Long userId = (Long) request.getAttribute("userId");
+            Long userId = getUserIdFromRequest(request);
             
             long count = watchlistService.getWatchlistCount(userId);
             
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "count", count
+            return ResponseEntity.ok(AuthResponseDto.success(
+                ResponseMessages.SUCCESS,
+                Map.of("count", count)
             ));
             
         } catch (Exception e) {
             log.error("Error getting watchlist count", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                "success", false,
-                "message", "서버 오류가 발생했습니다"
-            ));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
         }
+    }
+    
+    /**
+     * 요청에서 사용자 ID를 추출하는 헬퍼 메서드
+     */
+    private Long getUserIdFromRequest(HttpServletRequest request) {
+        return (Long) request.getAttribute("userId");
     }
 } 
