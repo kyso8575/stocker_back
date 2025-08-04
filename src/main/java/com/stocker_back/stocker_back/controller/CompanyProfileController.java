@@ -1,8 +1,7 @@
 package com.stocker_back.stocker_back.controller;
 
-import com.stocker_back.stocker_back.constant.ResponseMessages;
 import com.stocker_back.stocker_back.domain.StockSymbol;
-import com.stocker_back.stocker_back.dto.AuthResponseDto;
+import com.stocker_back.stocker_back.dto.ApiResponse;
 import com.stocker_back.stocker_back.dto.CompanyProfileDTO;
 import com.stocker_back.stocker_back.repository.StockSymbolRepository;
 import com.stocker_back.stocker_back.service.CompanyProfileService;
@@ -12,7 +11,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -39,9 +37,9 @@ public class CompanyProfileController {
         description = "특정 주식 심볼의 회사 프로필 정보를 조회합니다."
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "회사 프로필 조회 성공"),
-        @ApiResponse(responseCode = "404", description = "회사 프로필을 찾을 수 없음"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "회사 프로필 조회 성공"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "회사 프로필을 찾을 수 없음"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @GetMapping("/{symbol}")
     public ResponseEntity<?> getCompanyProfile(@PathVariable String symbol) {
@@ -52,22 +50,22 @@ public class CompanyProfileController {
             
             if (stockSymbolOpt.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(AuthResponseDto.error(ResponseMessages.ERROR_NOT_FOUND));
+                    .body(ApiResponse.error("요청한 데이터를 찾을 수 없습니다"));
             }
             
             StockSymbol stockSymbol = stockSymbolOpt.get();
             
             if (stockSymbol.isProfileEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(ResponseMessages.ERROR_NOT_FOUND));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error("요청한 데이터를 찾을 수 없습니다"));
             }
             
             CompanyProfileDTO profileData = convertToCompanyProfileDTO(stockSymbol);
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("profile", profileData)));
+            return ResponseEntity.ok(ApiResponse.success(Map.of("profile", profileData)));
             
         } catch (Exception e) {
             log.error("Error retrieving company profile for symbol: {}", symbol, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류가 발생했습니다"));
         }
     }
 
@@ -76,10 +74,10 @@ public class CompanyProfileController {
         description = "특정 주식 심볼의 회사 프로필 정보를 Finnhub API에서 가져와 데이터베이스에 저장합니다. (관리자 전용)"
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "201", description = "회사 프로필 수집 성공"),
-        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
-        @ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "회사 프로필 수집 성공"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PostMapping("/admin/symbol/{symbol}")
     public ResponseEntity<?> fetchCompanyProfile(@PathVariable String symbol) {
@@ -90,24 +88,24 @@ public class CompanyProfileController {
             
             if (updatedSymbol == null) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(AuthResponseDto.error(ResponseMessages.ERROR_NOT_FOUND));
+                    .body(ApiResponse.error("요청한 데이터를 찾을 수 없습니다"));
             }
             
             if (!updatedSymbol.isProfileEmpty()) {
                 CompanyProfileDTO profileData = convertToCompanyProfileDTO(updatedSymbol);
                 return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("profile", profileData)));
+                    .body(ApiResponse.success("성공", Map.of("profile", profileData)));
             } else {
                 Map<String, Object> responseData = new HashMap<>();
                 responseData.put("symbol", symbol);
                 responseData.put("isEmpty", true);
-                return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, responseData));
+                return ResponseEntity.ok(ApiResponse.success("성공", responseData));
             }
             
         } catch (Exception e) {
             log.error("Error fetching company profile for symbol {}: ", symbol, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류가 발생했습니다"));
         }
     }
 
@@ -116,10 +114,10 @@ public class CompanyProfileController {
         description = "여러 주식 심볼의 회사 프로필 정보를 Finnhub API에서 가져와 데이터베이스에 저장합니다. (관리자 전용)"
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "201", description = "회사 프로필 일괄 수집 성공"),
-        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
-        @ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "회사 프로필 일괄 수집 성공"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PostMapping("/admin/batch")
     public ResponseEntity<?> fetchCompanyProfilesBatch(
@@ -140,12 +138,12 @@ public class CompanyProfileController {
             responseData.put("emptyProfiles", emptyProfilesCount);
             
             return ResponseEntity.status(HttpStatus.CREATED)
-                .body(AuthResponseDto.success(ResponseMessages.SUCCESS, responseData));
+                .body(ApiResponse.success("성공", responseData));
             
         } catch (Exception e) {
             log.error("Error fetching company profiles: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류가 발생했습니다"));
         }
     }
 
@@ -154,10 +152,10 @@ public class CompanyProfileController {
         description = "S&P 500에 포함된 모든 회사의 프로필 정보를 Finnhub API에서 가져와 데이터베이스에 저장합니다. (관리자 전용)"
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "201", description = "회사 프로필 일괄 수집 성공"),
-        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
-        @ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "회사 프로필 일괄 수집 성공"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PostMapping("/admin/sp500")
     public ResponseEntity<?> fetchSp500CompanyProfiles(
@@ -178,12 +176,12 @@ public class CompanyProfileController {
             responseData.put("emptySp500Profiles", emptySp500ProfilesCount);
             
             return ResponseEntity.status(HttpStatus.CREATED)
-                .body(AuthResponseDto.success(ResponseMessages.SUCCESS, responseData));
+                .body(ApiResponse.success("성공", responseData));
             
         } catch (Exception e) {
             log.error("Error fetching S&P 500 company profiles: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류가 발생했습니다"));
         }
     }
     
@@ -192,13 +190,13 @@ public class CompanyProfileController {
         description = "특정 주식 심볼의 회사 프로필을 업데이트합니다."
     )
     @ApiResponses(value = {
-        @ApiResponse(
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "업데이트 성공",
             content = @Content(schema = @Schema(implementation = CompanyProfileDTO.class))
         ),
-        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PutMapping("/{symbol}")
     public ResponseEntity<?> updateCompanyProfile(
@@ -212,18 +210,18 @@ public class CompanyProfileController {
             if (updatedSymbol != null) {
                 CompanyProfileDTO profileData = convertToCompanyProfileDTO(updatedSymbol);
                 return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("profile", profileData)));
+                    .body(ApiResponse.success("성공", Map.of("profile", profileData)));
             } else {
                 Map<String, Object> responseData = new HashMap<>();
                 responseData.put("symbol", symbol);
                 responseData.put("isEmpty", true);
-                return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, responseData));
+                return ResponseEntity.ok(ApiResponse.success("성공", responseData));
             }
             
         } catch (Exception e) {
             log.error("Error fetching company profile for symbol {}: ", symbol, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류가 발생했습니다"));
         }
     }
     
@@ -232,13 +230,13 @@ public class CompanyProfileController {
         description = "여러 주식 심볼의 회사 프로필을 배치로 처리합니다."
     )
     @ApiResponses(value = {
-        @ApiResponse(
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "배치 처리 성공",
             content = @Content(schema = @Schema(implementation = Map.class))
         ),
-        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PostMapping("/batch")
     public ResponseEntity<?> processBatchCompanyProfiles(
@@ -274,15 +272,14 @@ public class CompanyProfileController {
             responseData.put("symbols", symbols);
             
             return ResponseEntity.status(HttpStatus.CREATED)
-                .body(AuthResponseDto.success(
-                    ResponseMessages.SUCCESS,
+                .body(ApiResponse.success("성공",
                     responseData
                 ));
             
         } catch (Exception e) {
             log.error("Error fetching company profiles: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류가 발생했습니다"));
         }
     }
     
@@ -291,12 +288,12 @@ public class CompanyProfileController {
         description = "S&P 500 지수의 모든 회사 프로필을 처리합니다."
     )
     @ApiResponses(value = {
-        @ApiResponse(
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "S&P 500 처리 성공",
             content = @Content(schema = @Schema(implementation = Map.class))
         ),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PostMapping("/sp500")
     public ResponseEntity<?> processSp500CompanyProfiles() {
@@ -314,15 +311,14 @@ public class CompanyProfileController {
             responseData.put("emptySp500ProfilesCount", emptySp500ProfilesCount);
             
             return ResponseEntity.status(HttpStatus.CREATED)
-                .body(AuthResponseDto.success(
-                    ResponseMessages.SUCCESS,
+                .body(ApiResponse.success("성공",
                     responseData
                 ));
             
         } catch (Exception e) {
             log.error("Error fetching S&P 500 company profiles: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류가 발생했습니다"));
         }
     }
     

@@ -1,8 +1,7 @@
 package com.stocker_back.stocker_back.controller;
 
-import com.stocker_back.stocker_back.constant.ResponseMessages;
 import com.stocker_back.stocker_back.domain.Trade;
-import com.stocker_back.stocker_back.dto.AuthResponseDto;
+import com.stocker_back.stocker_back.dto.ApiResponse;
 import com.stocker_back.stocker_back.service.TradeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +12,6 @@ import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -49,14 +47,14 @@ public class TradeController {
             List<Trade> trades = tradeService.getLatestTradesBySymbol(symbol, limit);
             
             if (trades.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(ResponseMessages.ERROR_NOT_FOUND));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error("데이터를 찾을 수 없습니다"));
             }
             
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("data", trades)));
+            return ResponseEntity.ok(ApiResponse.success("조회 성공", Map.of("data", trades)));
         } catch (Exception e) {
             log.error("Failed to get latest trades for symbol: {}", symbol, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류"));
         }
     }
     
@@ -71,14 +69,14 @@ public class TradeController {
             BigDecimal latestPrice = tradeService.getLatestPriceBySymbol(symbol);
             
             if (latestPrice == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(ResponseMessages.ERROR_NOT_FOUND));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error("데이터를 찾을 수 없습니다"));
             }
             
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("data", latestPrice)));
+            return ResponseEntity.ok(ApiResponse.success("조회 성공", Map.of("data", latestPrice)));
         } catch (Exception e) {
             log.error("Failed to get latest price for symbol: {}", symbol, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류"));
         }
     }
     
@@ -95,11 +93,11 @@ public class TradeController {
         try {
             List<Trade> trades = tradeService.getTradeHistory(from, to, symbol);
             
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("count", trades.size())));
+            return ResponseEntity.ok(ApiResponse.success("조회 성공", Map.of("count", trades.size())));
         } catch (Exception e) {
             log.error("Failed to get trade history", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류"));
         }
     }
     
@@ -110,12 +108,12 @@ public class TradeController {
         description = "실시간 거래 데이터 수집을 위한 웹소켓 연결 상태를 조회합니다."
     )
     @ApiResponses(value = {
-        @ApiResponse(
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "웹소켓 상태 조회 성공",
             content = @Content(schema = @Schema(implementation = Map.class))
         ),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @GetMapping("/websocket/status")
     public ResponseEntity<?> getWebSocketStatus() {
@@ -124,14 +122,14 @@ public class TradeController {
         try {
             Map<String, Object> statusData = tradeService.getWebSocketStatus();
             
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.SUCCESS,
+            return ResponseEntity.ok(ApiResponse.success(
+                "조회 성공",
                 statusData
             ));
         } catch (Exception e) {
             log.error("Failed to get WebSocket status", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류"));
         }
     }
     
@@ -140,14 +138,14 @@ public class TradeController {
         description = "실시간 거래 데이터 수집을 위한 웹소켓 연결을 시작합니다. (관리자 전용)"
     )
     @ApiResponses(value = {
-        @ApiResponse(
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "201",
             description = "웹소켓 연결 시작 성공",
             content = @Content(schema = @Schema(implementation = Map.class))
         ),
-        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
-        @ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PostMapping("/websocket/admin/connect")
     public ResponseEntity<?> connectWebSocket() {
@@ -157,14 +155,14 @@ public class TradeController {
             tradeService.connectWebSocket();
             Map<String, Object> statusData = tradeService.getWebSocketStatus();
             
-            return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(
+            return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(
                 "WebSocket connections initiated successfully",
                 statusData
             ));
         } catch (Exception e) {
             log.error("Failed to connect WebSocket", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류"));
         }
     }
     
@@ -173,14 +171,14 @@ public class TradeController {
         description = "실시간 거래 데이터 수집을 위한 웹소켓 연결을 해제합니다. (관리자 전용)"
     )
     @ApiResponses(value = {
-        @ApiResponse(
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "웹소켓 연결 해제 성공",
             content = @Content(schema = @Schema(implementation = Map.class))
         ),
-        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
-        @ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PostMapping("/websocket/admin/disconnect")
     public ResponseEntity<?> disconnectWebSocket() {
@@ -189,13 +187,13 @@ public class TradeController {
         try {
             tradeService.disconnectWebSocket();
             
-            return ResponseEntity.ok(AuthResponseDto.success(
+            return ResponseEntity.ok(ApiResponse.success(
                 "WebSocket connections disconnected successfully"
             ));
         } catch (Exception e) {
             log.error("Failed to disconnect WebSocket", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류"));
         }
     }
 } 

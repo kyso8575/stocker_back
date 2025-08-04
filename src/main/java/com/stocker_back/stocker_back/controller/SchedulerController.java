@@ -1,19 +1,12 @@
 package com.stocker_back.stocker_back.controller;
 
-import com.stocker_back.stocker_back.constant.ResponseMessages;
-import com.stocker_back.stocker_back.dto.AuthResponseDto;
+import com.stocker_back.stocker_back.dto.ApiResponse;
 import com.stocker_back.stocker_back.service.SchedulerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.Map;
 
@@ -25,51 +18,37 @@ import java.util.Map;
 @RequestMapping("/api/scheduler")
 @RequiredArgsConstructor
 @Slf4j
-@Tag(name = "Scheduler", description = "자동화된 데이터 수집 스케줄러 관리 API")
 public class SchedulerController {
 
     private final SchedulerService schedulerService;
 
-    @Operation(
-        summary = "통합 스케줄러 상태 조회",
-        description = "모든 자동화된 스케줄러(재무 지표, 월간 데이터, 시세, 웹소켓)의 상태와 설정을 조회합니다."
-    )
-    @ApiResponses(value = {
-        @ApiResponse(
-            responseCode = "200",
-            description = "스케줄러 상태 조회 성공",
-            content = @Content(schema = @Schema(implementation = Map.class))
-        ),
-        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
-        @ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
-    })
+    /**
+     * 스케줄러 상태 조회
+     */
     @GetMapping("/status")
     public ResponseEntity<?> getSchedulerStatus() {
-        log.info("Received request to get comprehensive scheduler status");
-        
         try {
-            Map<String, Object> schedulerData = schedulerService.getComprehensiveSchedulerStatus();
-            boolean isHealthy = (Boolean) schedulerData.get("success");
+            Map<String, Object> statusData = schedulerService.getComprehensiveSchedulerStatus();
             
-            // 메시지와 노트 추가
-            String message = isHealthy ? 
-                "All automated scheduler services are running normally" : 
-                ResponseMessages.format("Some automated scheduler services have issues: %s", 
-                    schedulerData.get("health") instanceof Map ? 
-                        ((Map<?, ?>) schedulerData.get("health")).get("error") : "Unknown error");
+            // 문제가 있는 스케줄러가 있는지 확인
+            boolean isHealthy = (Boolean) statusData.get("success");
+            if (!isHealthy) {
+                log.warn("Scheduler issues detected");
+                return ResponseEntity.ok(ApiResponse.success(
+                    "Some automated scheduler services have issues",
+                    statusData
+                ));
+            }
             
-            schedulerData.put("message", message);
-            schedulerData.put("note", "This is a fully automated system with 4 schedulers - no manual intervention required");
-            
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.SUCCESS,
-                schedulerData
+            return ResponseEntity.ok(ApiResponse.success(
+                "조회 성공",
+                statusData
             ));
+            
         } catch (Exception e) {
-            log.error("Error getting comprehensive scheduler status: {}", e.getMessage());
+            log.error("Error retrieving scheduler status", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류"));
         }
     }
 } 

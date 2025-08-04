@@ -1,7 +1,6 @@
 package com.stocker_back.stocker_back.controller;
 
-import com.stocker_back.stocker_back.constant.ResponseMessages;
-import com.stocker_back.stocker_back.dto.AuthResponseDto;
+import com.stocker_back.stocker_back.dto.ApiResponse;
 import com.stocker_back.stocker_back.service.DevService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,20 +26,20 @@ public class DevController {
         try {
             Map<String, Object> userData = devService.makeUserAdmin(username);
             
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.format("User %s is now an ADMIN", username), 
+            return ResponseEntity.ok(ApiResponse.success(
+                String.format("User %s is now an ADMIN", username), 
                 userData
             ));
             
         } catch (IllegalArgumentException e) {
             log.warn("Failed to make user admin: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(AuthResponseDto.error(
-                ResponseMessages.format("User %s not found", username)
+            return ResponseEntity.badRequest().body(ApiResponse.error(
+                String.format("User %s not found", username)
             ));
         } catch (Exception e) {
             log.error("Error making user admin for username {}: ", username, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류"));
         }
     }
 } 

@@ -1,7 +1,5 @@
 package com.stocker_back.stocker_back.controller;
 
-import com.stocker_back.stocker_back.constant.ResponseMessages;
-import com.stocker_back.stocker_back.dto.AuthResponseDto;
 import com.stocker_back.stocker_back.dto.CompanyNewsDTO;
 import com.stocker_back.stocker_back.service.NewsService;
 import lombok.RequiredArgsConstructor;
@@ -12,10 +10,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import com.stocker_back.stocker_back.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 
 @RestController
@@ -40,13 +38,13 @@ public class NewsController {
         description = "특정 주식 심볼의 회사 뉴스를 조회합니다."
     )
     @ApiResponses(value = {
-        @ApiResponse(
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "조회 성공",
             content = @Content(schema = @Schema(implementation = CompanyNewsDTO.class))
         ),
-        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @GetMapping("/companies/{symbol}")
     public ResponseEntity<?> getCompanyNews(
@@ -58,18 +56,12 @@ public class NewsController {
         log.info("Received request to get company news for symbol: {}, from: {}, to: {}, count: {}", 
                 symbol, from, to, count);
         
-        if (count <= 0) {
-            return ResponseEntity.badRequest().body(AuthResponseDto.error(
-                ResponseMessages.ERROR_INVALID_INPUT
-            ));
+        if (count != null && count <= 0) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("잘못된 입력입니다"));
         }
         
         try {
             List<CompanyNewsDTO> newsItems = newsService.fetchCompanyNews(symbol, from, to, count);
-            
-            String message = newsItems.isEmpty() ? 
-                ResponseMessages.format("No news found for %s in date range %s to %s", symbol, from, to) :
-                ResponseMessages.format("Successfully fetched %d news items for %s", newsItems.size(), symbol);
             
             Map<String, Object> data = Map.of(
                 "symbol", symbol.toUpperCase(),
@@ -79,12 +71,12 @@ public class NewsController {
                 "to", to
             );
             
-            return ResponseEntity.ok(AuthResponseDto.success(message, data));
+            return ResponseEntity.ok(ApiResponse.success(data));
             
         } catch (Exception e) {
             log.error("Error retrieving company news", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류가 발생했습니다"));
         }
     }
 
@@ -101,13 +93,13 @@ public class NewsController {
         description = "특정 날짜 범위의 시장 뉴스를 조회합니다."
     )
     @ApiResponses(value = {
-        @ApiResponse(
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "조회 성공",
             content = @Content(schema = @Schema(implementation = CompanyNewsDTO.class))
         ),
-        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @GetMapping("/market")
     public ResponseEntity<?> getMarketNews(
@@ -119,16 +111,10 @@ public class NewsController {
         
         try {
             if (count != null && count <= 0) {
-                return ResponseEntity.badRequest().body(AuthResponseDto.error(
-                    ResponseMessages.ERROR_INVALID_INPUT
-                ));
+                return ResponseEntity.badRequest().body(ApiResponse.error("잘못된 입력입니다"));
             }
             
             List<CompanyNewsDTO> newsItems = newsService.fetchMarketNews(from, to, count);
-            
-            String message = newsItems.isEmpty() ? 
-                ResponseMessages.format("No market news found in date range %s to %s", from, to) :
-                ResponseMessages.format("Successfully fetched %d market news items", newsItems.size());
             
             Map<String, Object> data = Map.of(
                 "data", newsItems,
@@ -137,12 +123,12 @@ public class NewsController {
                 "to", to
             );
             
-            return ResponseEntity.ok(AuthResponseDto.success(message, data));
+            return ResponseEntity.ok(ApiResponse.success(data));
             
         } catch (Exception e) {
             log.error("Error retrieving market news", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류가 발생했습니다"));
         }
     }
 } 

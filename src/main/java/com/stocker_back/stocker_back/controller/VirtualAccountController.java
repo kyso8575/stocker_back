@@ -1,7 +1,6 @@
 package com.stocker_back.stocker_back.controller;
 
-import com.stocker_back.stocker_back.constant.ResponseMessages;
-import com.stocker_back.stocker_back.dto.AuthResponseDto;
+import com.stocker_back.stocker_back.dto.ApiResponse;
 import com.stocker_back.stocker_back.dto.VirtualTradeRequestDto;
 import com.stocker_back.stocker_back.service.VirtualAccountService;
 import lombok.RequiredArgsConstructor;
@@ -30,25 +29,23 @@ public class VirtualAccountController {
         Long userId = getUserIdFromSession(session);
         if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_UNAUTHORIZED));
+                .body(ApiResponse.error("인증이 필요합니다"));
         }
         
         log.info("Received request to initialize virtual account for user: {}", userId);
         
         try {
             var account = virtualAccountService.createOrResetAccount(userId);
-            Map<String, Object> data = Map.of(
+            return ResponseEntity.ok(ApiResponse.success(Map.of(
                 "id", account.getId(),
                 "balance", account.getBalance(),
                 "createdAt", account.getCreatedAt(),
                 "updatedAt", account.getUpdatedAt()
-            );
-            
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
+            )));
         } catch (Exception e) {
             log.error("Error initializing virtual account", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류가 발생했습니다"));
         }
     }
     
@@ -57,18 +54,18 @@ public class VirtualAccountController {
         Long userId = getUserIdFromSession(session);
         if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_UNAUTHORIZED));
+                .body(ApiResponse.error("인증이 필요합니다"));
         }
         
         log.info("Received request to get account status for user: {}", userId);
         
         try {
             var status = virtualAccountService.getAccountStatus(userId);
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("data", status)));
+            return ResponseEntity.ok(ApiResponse.success(Map.of("data", status)));
         } catch (Exception e) {
             log.error("Error getting account status", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류가 발생했습니다"));
         }
     }
     
@@ -77,18 +74,18 @@ public class VirtualAccountController {
         Long userId = getUserIdFromSession(session);
         if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_UNAUTHORIZED));
+                .body(ApiResponse.error("인증이 필요합니다"));
         }
         
         log.info("Received request to get portfolio for user: {}", userId);
         
         try {
             var portfolio = virtualAccountService.getPortfolio(userId);
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("data", portfolio)));
+            return ResponseEntity.ok(ApiResponse.success(Map.of("data", portfolio)));
         } catch (Exception e) {
             log.error("Error getting portfolio", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류가 발생했습니다"));
         }
     }
     
@@ -98,18 +95,18 @@ public class VirtualAccountController {
         Long userId = getUserIdFromSession(session);
         if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_UNAUTHORIZED));
+                .body(ApiResponse.error("인증이 필요합니다"));
         }
         
         log.info("Received request to get portfolio summary for user: {}", userId);
         
         try {
             var summary = virtualAccountService.getPortfolioSummary(userId);
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("data", summary)));
+            return ResponseEntity.ok(ApiResponse.success(Map.of("data", summary)));
         } catch (Exception e) {
             log.error("Error getting portfolio summary", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류가 발생했습니다"));
         }
     }
     
@@ -119,7 +116,7 @@ public class VirtualAccountController {
         Long userId = getUserIdFromSession(session);
         if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_UNAUTHORIZED));
+                .body(ApiResponse.error("인증이 필요합니다"));
         }
         
         log.info("Received request to buy {} shares of {} for user: {}", req.getQuantity(), req.getSymbol(), userId);
@@ -134,11 +131,11 @@ public class VirtualAccountController {
                 "portfolio", portfolio
             );
             
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
+            return ResponseEntity.ok(ApiResponse.success(data));
         } catch (Exception e) {
             log.error("Error buying stock", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류가 발생했습니다"));
         }
     }
     
@@ -148,7 +145,7 @@ public class VirtualAccountController {
         Long userId = getUserIdFromSession(session);
         if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_UNAUTHORIZED));
+                .body(ApiResponse.error("인증이 필요합니다"));
         }
         
         log.info("Received request to sell {} shares of {} for user: {}", req.getQuantity(), req.getSymbol(), userId);
@@ -163,11 +160,11 @@ public class VirtualAccountController {
                 "portfolio", portfolio
             );
             
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
+            return ResponseEntity.ok(ApiResponse.success(data));
         } catch (Exception e) {
             log.error("Error selling stock", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류가 발생했습니다"));
         }
     }
     

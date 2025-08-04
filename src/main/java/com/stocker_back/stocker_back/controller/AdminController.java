@@ -1,7 +1,6 @@
 package com.stocker_back.stocker_back.controller;
 
-import com.stocker_back.stocker_back.constant.ResponseMessages;
-import com.stocker_back.stocker_back.dto.AuthResponseDto;
+import com.stocker_back.stocker_back.dto.ApiResponse;
 import com.stocker_back.stocker_back.service.SystemStatusService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -30,12 +29,12 @@ public class AdminController {
             log.info("Admin {} requested system status", adminUsername);
             
             Map<String, Object> systemData = systemStatusService.getSystemStatus(adminUsername);
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, systemData));
+            return ResponseEntity.ok(ApiResponse.success("조회 성공", systemData));
             
         } catch (Exception e) {
             log.error("Error retrieving system status", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류"));
         }
     }
 } 

@@ -1,7 +1,6 @@
 package com.stocker_back.stocker_back.controller;
 
-import com.stocker_back.stocker_back.constant.ResponseMessages;
-import com.stocker_back.stocker_back.dto.AuthResponseDto;
+import com.stocker_back.stocker_back.dto.ApiResponse;
 import com.stocker_back.stocker_back.dto.WatchlistRequestDto;
 import com.stocker_back.stocker_back.dto.WatchlistResponseDto;
 import com.stocker_back.stocker_back.service.WatchlistService;
@@ -9,7 +8,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -39,13 +37,13 @@ public class WatchlistController {
         description = "로그인한 사용자의 관심 종목 목록을 조회합니다."
     )
     @ApiResponses(value = {
-        @ApiResponse(
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "조회 성공",
             content = @Content(schema = @Schema(implementation = WatchlistResponseDto.class))
         ),
-        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @GetMapping
     public ResponseEntity<?> getWatchlist(HttpServletRequest request) {
@@ -58,17 +56,15 @@ public class WatchlistController {
             
             log.info("Retrieved watchlist for user: {}, count: {}", userId, totalCount);
             
-            Map<String, Object> data = Map.of(
+            return ResponseEntity.ok(ApiResponse.success(Map.of(
                 "data", watchlist,
                 "totalCount", totalCount
-            );
-            
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
+            )));
             
         } catch (Exception e) {
             log.error("Error retrieving watchlist", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류"));
         }
     }
     
@@ -77,14 +73,14 @@ public class WatchlistController {
         description = "새로운 주식을 관심 종목에 추가합니다."
     )
     @ApiResponses(value = {
-        @ApiResponse(
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "추가 성공",
             content = @Content(schema = @Schema(implementation = WatchlistResponseDto.class))
         ),
-        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
-        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PostMapping
     public ResponseEntity<?> addToWatchlist(
@@ -104,25 +100,22 @@ public class WatchlistController {
                 bindingResult.getFieldErrors().forEach(error -> 
                     errors.put(error.getField(), error.getDefaultMessage())
                 );
-                return ResponseEntity.badRequest().body(AuthResponseDto.error(
-                    ResponseMessages.ERROR_INVALID_INPUT,
-                    errors
-                ));
+                return ResponseEntity.badRequest().body(ApiResponse.error("잘못된 입력입니다"));
             }
             
             WatchlistResponseDto result = watchlistService.addToWatchlist(userId, requestDto);
             
             log.info("Added stock to watchlist - userId: {}, symbol: {}", userId, requestDto.getSymbol());
             
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("data", result)));
+            return ResponseEntity.ok(ApiResponse.success(Map.of("data", result)));
             
         } catch (IllegalArgumentException e) {
             log.warn("Failed to add to watchlist: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(AuthResponseDto.error(ResponseMessages.ERROR_INVALID_INPUT));
+            return ResponseEntity.badRequest().body(ApiResponse.error("잘못된 입력입니다"));
         } catch (Exception e) {
             log.error("Error adding to watchlist", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류"));
         }
     }
     
@@ -131,11 +124,11 @@ public class WatchlistController {
         description = "관심 종목에서 특정 주식을 제거합니다."
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "제거 성공"),
-        @ApiResponse(responseCode = "400", description = "잘못된 요청"),
-        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
-        @ApiResponse(responseCode = "404", description = "관심 종목에 없는 주식"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "제거 성공"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "관심 종목에 없는 주식"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @DeleteMapping("/{symbol}")
     public ResponseEntity<?> removeFromWatchlist(
@@ -152,15 +145,15 @@ public class WatchlistController {
             
             log.info("Removed stock from watchlist - userId: {}, symbol: {}", userId, symbol);
             
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS));
+            return ResponseEntity.ok(ApiResponse.success("관심 종목 제거 성공"));
             
         } catch (IllegalArgumentException e) {
             log.warn("Failed to remove from watchlist: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(AuthResponseDto.error(ResponseMessages.ERROR_INVALID_INPUT));
+            return ResponseEntity.badRequest().body(ApiResponse.error("잘못된 입력입니다"));
         } catch (Exception e) {
             log.error("Error removing from watchlist", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류"));
         }
     }
     
@@ -169,13 +162,13 @@ public class WatchlistController {
         description = "특정 주식이 관심 종목에 있는지 확인합니다."
     )
     @ApiResponses(value = {
-        @ApiResponse(
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "확인 성공",
             content = @Content(schema = @Schema(implementation = Map.class))
         ),
-        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @GetMapping("/check/{symbol}")
     public ResponseEntity<?> checkInWatchlist(
@@ -195,12 +188,12 @@ public class WatchlistController {
                 "symbol", symbol.toUpperCase()
             );
             
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
+            return ResponseEntity.ok(ApiResponse.success(data));
             
         } catch (Exception e) {
             log.error("Error checking watchlist status", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류"));
         }
     }
     
@@ -209,13 +202,13 @@ public class WatchlistController {
         description = "사용자의 관심 종목 개수를 조회합니다."
     )
     @ApiResponses(value = {
-        @ApiResponse(
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
             responseCode = "200",
             description = "조회 성공",
             content = @Content(schema = @Schema(implementation = Map.class))
         ),
-        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @GetMapping("/count")
     public ResponseEntity<?> getWatchlistCount(HttpServletRequest request) {
@@ -226,12 +219,12 @@ public class WatchlistController {
             
             long count = watchlistService.getWatchlistCount(userId);
             
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("count", count)));
+            return ResponseEntity.ok(ApiResponse.success(Map.of("count", count)));
             
         } catch (Exception e) {
             log.error("Error getting watchlist count", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류"));
         }
     }
     

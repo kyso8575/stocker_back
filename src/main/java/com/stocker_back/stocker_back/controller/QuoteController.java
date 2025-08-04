@@ -1,8 +1,7 @@
 package com.stocker_back.stocker_back.controller;
 
-import com.stocker_back.stocker_back.constant.ResponseMessages;
 import com.stocker_back.stocker_back.domain.Quote;
-import com.stocker_back.stocker_back.dto.AuthResponseDto;
+import com.stocker_back.stocker_back.dto.ApiResponse;
 import com.stocker_back.stocker_back.service.QuoteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,7 +9,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -30,10 +28,10 @@ public class QuoteController {
         description = "S&P 500에 포함된 모든 주식의 시세 데이터를 Finnhub API에서 가져와 데이터베이스에 저장합니다. (관리자 전용)"
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "201", description = "S&P 500 시세 일괄 수집 성공"),
-        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
-        @ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "S&P 500 시세 일괄 수집 성공"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PostMapping("/admin/sp500")
     public ResponseEntity<?> fetchSp500Quotes(
@@ -46,11 +44,11 @@ public class QuoteController {
         try {
             int savedCount = quoteService.fetchAndSaveSp500Quotes(batchSize, delayMs);
             
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("savedCount", savedCount)));
+            return ResponseEntity.ok(ApiResponse.success(Map.of("savedCount", savedCount)));
         } catch (Exception e) {
             log.error("Error fetching S&P 500 quotes: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류가 발생했습니다"));
         }
     }
 
@@ -59,10 +57,10 @@ public class QuoteController {
         description = "특정 주식 심볼의 시세 데이터를 Finnhub API에서 가져와 데이터베이스에 저장합니다. (관리자 전용)"
     )
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "201", description = "주식 시세 수집 성공"),
-        @ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
-        @ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
-        @ApiResponse(responseCode = "500", description = "서버 오류")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "주식 시세 수집 성공"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증되지 않은 접근"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "관리자 권한 필요"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PostMapping("/admin/symbol/{symbol}")
     public ResponseEntity<?> fetchQuote(@PathVariable String symbol) {
@@ -72,20 +70,20 @@ public class QuoteController {
             Quote savedQuote = quoteService.fetchAndSaveQuote(symbol);
             
             if (savedQuote != null) {
-                return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(
-                    ResponseMessages.format("Quote fetched for %s", symbol),
+                return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(
+                    String.format("Quote fetched for %s", symbol),
                     Map.of(
                         "symbol", symbol,
                         "data", savedQuote
                     )
                 ));
             } else {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(ResponseMessages.ERROR_NOT_FOUND));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error("요청한 데이터를 찾을 수 없습니다"));
             }
         } catch (Exception e) {
             log.error("Error fetching quote for symbol {}: {}", symbol, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(AuthResponseDto.error(ResponseMessages.ERROR_SERVER));
+                .body(ApiResponse.error("서버 오류가 발생했습니다"));
         }
     }
 } 
