@@ -34,7 +34,7 @@ public class FinnhubApiClient {
     private final Object rateLimitLock = new Object();
     
     public FinnhubApiClient(
-        @Qualifier("customRestTemplate") RestTemplate restTemplate,
+        RestTemplate restTemplate,
         FinnhubApiConfig finnhubApiConfig) {
         this.restTemplate = restTemplate;
         this.finnhubApiConfig = finnhubApiConfig;

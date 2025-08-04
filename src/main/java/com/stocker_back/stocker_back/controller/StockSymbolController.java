@@ -53,10 +53,7 @@ public class StockSymbolController {
                     "savedCount", 0
                 );
                 
-                return ResponseEntity.ok(AuthResponseDto.success(
-                    ResponseMessages.format("Symbol %s already exists", upperSymbol),
-                    data
-                ));
+                return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
             }
             
             int savedCount = stockSymbolService.fetchAndSaveStockSymbols(exchange, upperSymbol);
@@ -68,14 +65,9 @@ public class StockSymbolController {
             );
             
             if (savedCount > 0) {
-                return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(
-                    ResponseMessages.format("Symbol %s added for exchange %s", upperSymbol, exchange),
-                    data
-                ));
+                return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
             } else {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(
-                    ResponseMessages.format("Symbol %s not found for exchange %s", upperSymbol, exchange)
-                ));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(ResponseMessages.ERROR_NOT_FOUND));
             }
         } catch (Exception e) {
             log.error("Error adding stock symbol {} for exchange {}: {}", symbol, exchange, e.getMessage());
@@ -112,10 +104,7 @@ public class StockSymbolController {
                 "delayMs", delayMs
             );
             
-            return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(
-                ResponseMessages.format(ResponseMessages.TEMPLATE_PROCESSED_ITEMS, savedCount),
-                data
-            ));
+            return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("savedCount", savedCount)));
         } catch (Exception e) {
             log.error("Error adding stock symbols in batch for exchange {}: {}", exchange, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -145,14 +134,9 @@ public class StockSymbolController {
                     "data", symbolOpt.get()
                 );
                 
-                return ResponseEntity.ok(AuthResponseDto.success(
-                    ResponseMessages.format("Symbol %s retrieved successfully", symbol),
-                    data
-                ));
+                return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
             } else {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(
-                    ResponseMessages.format("Symbol %s not found in database", symbol)
-                ));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(ResponseMessages.ERROR_NOT_FOUND));
             }
         } catch (Exception e) {
             log.error("Error retrieving stock symbol {}: {}", symbol, e.getMessage());

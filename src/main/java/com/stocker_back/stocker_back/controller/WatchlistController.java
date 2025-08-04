@@ -63,10 +63,7 @@ public class WatchlistController {
                 "totalCount", totalCount
             );
             
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.format(ResponseMessages.TEMPLATE_RETRIEVED_COUNT, totalCount),
-                data
-            ));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
             
         } catch (Exception e) {
             log.error("Error retrieving watchlist", e);
@@ -117,10 +114,7 @@ public class WatchlistController {
             
             log.info("Added stock to watchlist - userId: {}, symbol: {}", userId, requestDto.getSymbol());
             
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.SUCCESS_WATCHLIST_ADDED,
-                Map.of("data", result)
-            ));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("data", result)));
             
         } catch (IllegalArgumentException e) {
             log.warn("Failed to add to watchlist: {}", e.getMessage());
@@ -158,9 +152,7 @@ public class WatchlistController {
             
             log.info("Removed stock from watchlist - userId: {}, symbol: {}", userId, symbol);
             
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.SUCCESS_WATCHLIST_REMOVED
-            ));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS));
             
         } catch (IllegalArgumentException e) {
             log.warn("Failed to remove from watchlist: {}", e.getMessage());
@@ -203,10 +195,7 @@ public class WatchlistController {
                 "symbol", symbol.toUpperCase()
             );
             
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.SUCCESS,
-                data
-            ));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
             
         } catch (Exception e) {
             log.error("Error checking watchlist status", e);
@@ -237,10 +226,7 @@ public class WatchlistController {
             
             long count = watchlistService.getWatchlistCount(userId);
             
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.SUCCESS,
-                Map.of("count", count)
-            ));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("count", count)));
             
         } catch (Exception e) {
             log.error("Error getting watchlist count", e);

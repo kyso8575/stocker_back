@@ -54,7 +54,7 @@ public class AuthController {
             log.info("Registration successful and auto login with session management: userId={}, username={}, sessionId={}", 
                     user.getId(), user.getUsername(), session.getId());
             
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS_REGISTER, convertUserToMap(user)));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, convertUserToMap(user)));
             
         } catch (IllegalArgumentException e) {
             log.warn("Registration failed: {}", e.getMessage());
@@ -91,7 +91,7 @@ public class AuthController {
             log.info("Login successful with duplicate login management: userId={}, username={}, sessionId={}", 
                     user.getId(), user.getUsername(), session.getId());
             
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS_LOGIN, convertUserToMap(user)));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, convertUserToMap(user)));
             
         } catch (IllegalArgumentException e) {
             log.warn("Login failed: {}", e.getMessage());
@@ -126,7 +126,7 @@ public class AuthController {
             
             log.info("Logout successful with session cleanup: username={}, sessionId={}", username, sessionId);
             
-            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS_LOGOUT));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS));
             
         } catch (Exception e) {
             log.error("Server error during logout", e);
@@ -143,7 +143,7 @@ public class AuthController {
             boolean exist = userService.isUsernameExists(username);
             Map<String, Object> data = Map.of(
                 "exist", exist,
-                "message", exist ? ResponseMessages.ERROR_USERNAME_EXISTS : "Username is available"
+                "message", exist ? ResponseMessages.ERROR_NOT_FOUND : "Username is available"
             );
             return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
         } catch (Exception e) {
@@ -161,7 +161,7 @@ public class AuthController {
             boolean exist = userService.isEmailExists(email);
             Map<String, Object> data = Map.of(
                 "exist", exist,
-                "message", exist ? ResponseMessages.ERROR_EMAIL_EXISTS : "Email is available"
+                "message", exist ? ResponseMessages.ERROR_NOT_FOUND : "Email is available"
             );
             return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
         } catch (Exception e) {

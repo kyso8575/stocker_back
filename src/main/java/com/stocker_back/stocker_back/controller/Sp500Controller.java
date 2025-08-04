@@ -48,10 +48,7 @@ public class Sp500Controller {
                 "count", updatedSymbols.size()
             );
             
-            return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(
-                ResponseMessages.format(ResponseMessages.TEMPLATE_PROCESSED_ITEMS, updatedSymbols.size()),
-                data
-            ));
+            return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("updatedCount", updatedSymbols.size())));
         } catch (Exception e) {
             log.error("Error updating S&P 500 list: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -79,10 +76,7 @@ public class Sp500Controller {
                 "count", stockList.size()
             );
             
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.format(ResponseMessages.TEMPLATE_RETRIEVED_COUNT, stockList.size()),
-                data
-            ));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("count", stockList.size())));
         } catch (Exception e) {
             log.error("Error retrieving S&P 500 symbols: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -110,10 +104,7 @@ public class Sp500Controller {
                 "totalCount", tableData.size()
             );
             
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.format(ResponseMessages.TEMPLATE_RETRIEVED_COUNT, tableData.size()),
-                data
-            ));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("count", tableData.size())));
         } catch (Exception e) {
             log.error("Error retrieving S&P 500 table data: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)

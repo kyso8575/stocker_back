@@ -44,10 +44,7 @@ public class VirtualAccountController {
                 "updatedAt", account.getUpdatedAt()
             );
             
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.SUCCESS_VIRTUAL_ACCOUNT_INIT,
-                data
-            ));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
         } catch (Exception e) {
             log.error("Error initializing virtual account", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -67,10 +64,7 @@ public class VirtualAccountController {
         
         try {
             var status = virtualAccountService.getAccountStatus(userId);
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.SUCCESS,
-                Map.of("data", status)
-            ));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("data", status)));
         } catch (Exception e) {
             log.error("Error getting account status", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -90,10 +84,7 @@ public class VirtualAccountController {
         
         try {
             var portfolio = virtualAccountService.getPortfolio(userId);
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.SUCCESS,
-                Map.of("data", portfolio)
-            ));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("data", portfolio)));
         } catch (Exception e) {
             log.error("Error getting portfolio", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -114,10 +105,7 @@ public class VirtualAccountController {
         
         try {
             var summary = virtualAccountService.getPortfolioSummary(userId);
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.SUCCESS,
-                Map.of("data", summary)
-            ));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("data", summary)));
         } catch (Exception e) {
             log.error("Error getting portfolio summary", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -146,10 +134,7 @@ public class VirtualAccountController {
                 "portfolio", portfolio
             );
             
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.SUCCESS_VIRTUAL_BUY,
-                data
-            ));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
         } catch (Exception e) {
             log.error("Error buying stock", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -178,10 +163,7 @@ public class VirtualAccountController {
                 "portfolio", portfolio
             );
             
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.SUCCESS_VIRTUAL_SELL,
-                data
-            ));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
         } catch (Exception e) {
             log.error("Error selling stock", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)

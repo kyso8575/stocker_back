@@ -52,13 +52,13 @@ public class CompanyProfileController {
             
             if (stockSymbolOpt.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(AuthResponseDto.error(ResponseMessages.format("Symbol %s not found in database", symbol)));
+                    .body(AuthResponseDto.error(ResponseMessages.ERROR_NOT_FOUND));
             }
             
             StockSymbol stockSymbol = stockSymbolOpt.get();
             
             if (stockSymbol.isProfileEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(ResponseMessages.format("No profile information available for %s", symbol)));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(ResponseMessages.ERROR_NOT_FOUND));
             }
             
             CompanyProfileDTO profileData = convertToCompanyProfileDTO(stockSymbol);
@@ -90,7 +90,7 @@ public class CompanyProfileController {
             
             if (updatedSymbol == null) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(AuthResponseDto.error(ResponseMessages.format("Symbol %s not found in database", symbol)));
+                    .body(AuthResponseDto.error(ResponseMessages.ERROR_NOT_FOUND));
             }
             
             if (!updatedSymbol.isProfileEmpty()) {
@@ -140,7 +140,7 @@ public class CompanyProfileController {
             responseData.put("emptyProfiles", emptyProfilesCount);
             
             return ResponseEntity.status(HttpStatus.CREATED)
-                .body(AuthResponseDto.success(ResponseMessages.format(ResponseMessages.TEMPLATE_PROCESSED_ITEMS, updatedCount), responseData));
+                .body(AuthResponseDto.success(ResponseMessages.SUCCESS, responseData));
             
         } catch (Exception e) {
             log.error("Error fetching company profiles: ", e);
@@ -178,7 +178,7 @@ public class CompanyProfileController {
             responseData.put("emptySp500Profiles", emptySp500ProfilesCount);
             
             return ResponseEntity.status(HttpStatus.CREATED)
-                .body(AuthResponseDto.success(ResponseMessages.format(ResponseMessages.TEMPLATE_BATCH_PROCESSED, updatedCount, "S&P 500"), responseData));
+                .body(AuthResponseDto.success(ResponseMessages.SUCCESS, responseData));
             
         } catch (Exception e) {
             log.error("Error fetching S&P 500 company profiles: ", e);
@@ -275,7 +275,7 @@ public class CompanyProfileController {
             
             return ResponseEntity.status(HttpStatus.CREATED)
                 .body(AuthResponseDto.success(
-                    ResponseMessages.format(ResponseMessages.TEMPLATE_PROCESSED_ITEMS, updatedCount),
+                    ResponseMessages.SUCCESS,
                     responseData
                 ));
             
@@ -315,7 +315,7 @@ public class CompanyProfileController {
             
             return ResponseEntity.status(HttpStatus.CREATED)
                 .body(AuthResponseDto.success(
-                    ResponseMessages.format(ResponseMessages.TEMPLATE_BATCH_PROCESSED, updatedCount, "S&P 500"),
+                    ResponseMessages.SUCCESS,
                     responseData
                 ));
             

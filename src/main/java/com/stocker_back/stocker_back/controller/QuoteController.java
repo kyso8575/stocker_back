@@ -46,17 +46,7 @@ public class QuoteController {
         try {
             int savedCount = quoteService.fetchAndSaveSp500Quotes(batchSize, delayMs);
             
-            Map<String, Object> data = Map.of(
-                "processedCount", savedCount,
-                "batchSize", batchSize,
-                "delayMs", delayMs,
-                "estimatedTime", ResponseMessages.format("%.1f minutes", (savedCount / 60.0))
-            );
-            
-            return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(
-                ResponseMessages.format(ResponseMessages.TEMPLATE_PROCESSED_ITEMS, savedCount),
-                data
-            ));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("savedCount", savedCount)));
         } catch (Exception e) {
             log.error("Error fetching S&P 500 quotes: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -90,9 +80,7 @@ public class QuoteController {
                     )
                 ));
             } else {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(
-                    ResponseMessages.format("No quote data available for %s", symbol)
-                ));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(ResponseMessages.ERROR_NOT_FOUND));
             }
         } catch (Exception e) {
             log.error("Error fetching quote for symbol {}: {}", symbol, e.getMessage());

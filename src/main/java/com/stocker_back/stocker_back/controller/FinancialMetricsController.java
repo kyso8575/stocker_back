@@ -53,9 +53,7 @@ public class FinancialMetricsController {
                     )
                 ));
             } else {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(
-                    ResponseMessages.format("No financial metrics found for %s", symbol)
-                ));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(ResponseMessages.ERROR_NOT_FOUND));
             }
         } catch (Exception e) {
             log.error("Error retrieving financial metrics for symbol {}: {}", symbol, e.getMessage());
@@ -96,13 +94,13 @@ public class FinancialMetricsController {
                     ResponseMessages.format("%d records found for %s in range", metricsHistory.size(), symbol) :
                     ResponseMessages.format("%d records found for %s", metricsHistory.size(), symbol);
                 
-                return ResponseEntity.ok(AuthResponseDto.success(message, data));
+                return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, data));
             } else {
                 String message = ((from != null && !from.isEmpty()) || (to != null && !to.isEmpty())) ?
                     ResponseMessages.format("No records found for %s in range", symbol) :
                     ResponseMessages.format("No records found for %s", symbol);
                 
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(message));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(ResponseMessages.ERROR_NOT_FOUND));
             }
         } catch (Exception e) {
             log.error("Error retrieving financial metrics history for symbol {}: {}", symbol, e.getMessage());
@@ -132,10 +130,7 @@ public class FinancialMetricsController {
         try {
             int savedCount = financialMetricsService.fetchAndSaveAllBasicFinancials(batchSize, delayMs);
             
-            return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(
-                ResponseMessages.format("%d financial metrics processed", savedCount),
-                Map.of("processedCount", savedCount)
-            ));
+            return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("processedCount", savedCount)));
         } catch (Exception e) {
             log.error("Error fetching financial metrics: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -208,10 +203,7 @@ public class FinancialMetricsController {
         try {
             int savedCount = financialMetricsService.fetchAndSaveSp500BasicFinancials(batchSize, delayMs);
             
-            return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(
-                ResponseMessages.format("%d financial metrics processed", savedCount),
-                Map.of("processedCount", savedCount)
-            ));
+            return ResponseEntity.status(HttpStatus.CREATED).body(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("processedCount", savedCount)));
         } catch (Exception e) {
             log.error("Error fetching S&P 500 financial metrics: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -244,11 +236,9 @@ public class FinancialMetricsController {
                     ResponseMessages.format("%d records found for S&P 500 on %s", count, date) :
                     ResponseMessages.format("%d records found for S&P 500 as of %s", count, date);
                 
-                return ResponseEntity.ok(AuthResponseDto.success(message, result));
+                return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, result));
             } else {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(
-                    ResponseMessages.format("No records found for S&P 500 on %s", date)
-                ));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(ResponseMessages.ERROR_NOT_FOUND));
             }
         } catch (Exception e) {
             log.error("Error retrieving S&P 500 financial metrics: {}", e.getMessage());

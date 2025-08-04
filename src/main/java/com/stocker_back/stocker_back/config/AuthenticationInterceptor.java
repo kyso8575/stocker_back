@@ -24,16 +24,6 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
     private final UserRepository userRepository;
     
     // 상수 정의
-    private static final Set<String> ADMIN_PATHS = Set.of(
-        "/api/admin",           // 모든 관리자 API의 기본 경로
-        "/api/admin/data",      // 데이터 수집/수정 API
-        "/api/admin/system",    // 시스템 관리
-        "/api/admin/users",     // 사용자 관리
-        "/api/admin/websocket", // 웹소켓 제어
-        "/api/admin/database",  // 데이터베이스 관리
-        "/api/auth/admin"       // 관리자용 세션 관리
-    );
-    
     private static final Set<String> AUTHENTICATED_PATHS = Set.of(
         "/api/watchlist",
         "/api/auth/me",
@@ -73,14 +63,14 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
         
         if (userId == null) {
             log.warn("Unauthorized access attempt (no login) to: {}", requestURI);
-            return sendErrorResponse(request, response, HttpServletResponse.SC_UNAUTHORIZED, "로그인이 필요합니다", LOGIN_REDIRECT_URL);
+            return sendErrorResponse(request, response, HttpServletResponse.SC_UNAUTHORIZED, "로그인이 필요합니다", LOGIN_REDIRECT_URL, null);
         }
         
         // 사용자 정보 조회
         User user = userRepository.findById(userId).orElse(null);
         if (user == null) {
             log.warn("User not found for userId: {} accessing: {}", userId, requestURI);
-            return sendErrorResponse(request, response, HttpServletResponse.SC_UNAUTHORIZED, "사용자 정보를 찾을 수 없습니다", LOGIN_REDIRECT_URL);
+            return sendErrorResponse(request, response, HttpServletResponse.SC_UNAUTHORIZED, "사용자 정보를 찾을 수 없습니다", LOGIN_REDIRECT_URL, null);
         }
         
         // 관리자 권한이 필요한 경로인지 확인
@@ -104,14 +94,6 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
     
     /**
      * 통합 에러 응답 전송
-     */
-    private boolean sendErrorResponse(HttpServletRequest request, HttpServletResponse response, 
-                                    int statusCode, String message, String redirectUrl) throws Exception {
-        return sendErrorResponse(request, response, statusCode, message, redirectUrl, null);
-    }
-    
-    /**
-     * 통합 에러 응답 전송 (코드 포함)
      */
     private boolean sendErrorResponse(HttpServletRequest request, HttpServletResponse response, 
                                     int statusCode, String message, String redirectUrl, String code) throws Exception {
@@ -140,11 +122,7 @@ public class AuthenticationInterceptor implements HandlerInterceptor {
      */
     private boolean requiresAdminRole(String requestURI) {
         // /admin이 포함된 모든 경로는 관리자 권한 필요
-        if (requestURI.contains("/admin")) {
-            return true;
-        }
-        
-        return ADMIN_PATHS.stream().anyMatch(requestURI::startsWith);
+        return requestURI.contains("/admin");
     }
     
     /**

@@ -49,22 +49,10 @@ public class TradeController {
             List<Trade> trades = tradeService.getLatestTradesBySymbol(symbol, limit);
             
             if (trades.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(
-                    ResponseMessages.format(ResponseMessages.TEMPLATE_NOT_FOUND_FOR_SYMBOL, symbol.toUpperCase())
-                ));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(ResponseMessages.ERROR_NOT_FOUND));
             }
             
-            Map<String, Object> data = Map.of(
-                "symbol", symbol.toUpperCase(),
-                "data", trades,
-                "count", trades.size(),
-                "limit", limit
-            );
-            
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.format(ResponseMessages.TEMPLATE_RETRIEVED_FOR_SYMBOL, symbol.toUpperCase()),
-                data
-            ));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("data", trades)));
         } catch (Exception e) {
             log.error("Failed to get latest trades for symbol: {}", symbol, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -83,21 +71,10 @@ public class TradeController {
             BigDecimal latestPrice = tradeService.getLatestPriceBySymbol(symbol);
             
             if (latestPrice == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(
-                    ResponseMessages.format(ResponseMessages.TEMPLATE_NOT_FOUND_FOR_SYMBOL, symbol.toUpperCase())
-                ));
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(AuthResponseDto.error(ResponseMessages.ERROR_NOT_FOUND));
             }
             
-            Map<String, Object> data = Map.of(
-                "symbol", symbol.toUpperCase(),
-                "price", latestPrice,
-                "currency", "USD"
-            );
-            
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.format(ResponseMessages.TEMPLATE_RETRIEVED_FOR_SYMBOL, symbol.toUpperCase()),
-                data
-            ));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("data", latestPrice)));
         } catch (Exception e) {
             log.error("Failed to get latest price for symbol: {}", symbol, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -118,18 +95,7 @@ public class TradeController {
         try {
             List<Trade> trades = tradeService.getTradeHistory(from, to, symbol);
             
-            Map<String, Object> data = Map.of(
-                "data", trades,
-                "count", trades.size(),
-                "from", from,
-                "to", to,
-                "symbol", symbol != null ? symbol.toUpperCase() : "All"
-            );
-            
-            return ResponseEntity.ok(AuthResponseDto.success(
-                ResponseMessages.format(ResponseMessages.TEMPLATE_RETRIEVED_COUNT, trades.size()),
-                data
-            ));
+            return ResponseEntity.ok(AuthResponseDto.success(ResponseMessages.SUCCESS, Map.of("count", trades.size())));
         } catch (Exception e) {
             log.error("Failed to get trade history", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
